@@ -379,6 +379,12 @@ std::string release_version_from_tag(const std::string& tag) {
     if (value.rfind("KSM-", 0) == 0 || value.rfind("ksm-", 0) == 0) {
         value = value.substr(4);
     }
+    const auto firstDigit = std::find_if(value.begin(), value.end(), [](unsigned char ch) {
+        return std::isdigit(ch);
+    });
+    if (firstDigit != value.end()) {
+        value.erase(value.begin(), firstDigit);
+    }
     return normalize_version(value);
 }
 
@@ -815,20 +821,37 @@ bool preserve_config_file(const fs::path& sourceDir) {
     return true;
 }
 
-bool write_release_version_file(const fs::path& sourceDir, const ReleaseInfo& release) {
-    std::ofstream file(sourceDir / "VERSION.txt", std::ios::trunc);
+bool write_version_file(const fs::path& directory, const std::string& version) {
+    std::ofstream file(directory / "VERSION.txt", std::ios::trunc);
     if (!file.is_open()) {
-        log_line("version: cannot write VERSION.txt");
+        log_line("version: cannot write " + (directory / "VERSION.txt").string());
         return false;
     }
 
-    file << release.version << '\n';
+    file << version << '\n';
     if (!file.good()) {
-        log_line("version: failed while writing VERSION.txt");
+        log_line("version: failed while writing " + (directory / "VERSION.txt").string());
         return false;
     }
 
-    log_line("version: wrote VERSION.txt as " + release.version);
+    log_line("version: wrote " + (directory / "VERSION.txt").string() + " as " + version);
+    return true;
+}
+
+bool write_release_version_file(const fs::path& directory, const ReleaseInfo& release) {
+    if (release.version.empty()) {
+        log_line("version: release version is empty");
+        return false;
+    }
+    if (!write_version_file(directory, release.version)) {
+        return false;
+    }
+
+    const std::string reread = normalize_version(read_first_line(directory / "VERSION.txt"));
+    if (reread != release.version) {
+        log_line("version: verification failed, got " + reread + " expected " + release.version);
+        return false;
+    }
     return true;
 }
 
@@ -898,7 +921,7 @@ bool rollback_install(const fs::path& backupDir) {
     return true;
 }
 
-bool commit_install(const fs::path& newInstallDir, bool doLinkCommands) {
+bool commit_install(const fs::path& newInstallDir, bool doLinkCommands, const ReleaseInfo& release) {
     const fs::path backupDir = unique_opt_path("KSM.backup.kupgr");
     bool hasBackup = false;
     std::error_code ec;
@@ -915,6 +938,11 @@ bool commit_install(const fs::path& newInstallDir, bool doLinkCommands) {
     fs::rename(newInstallDir, kInstallDir, ec);
     if (ec) {
         log_line("install: cannot activate new installation: " + ec.message());
+        if (hasBackup) rollback_install(backupDir);
+        return false;
+    }
+
+    if (!write_release_version_file(kInstallDir, release)) {
         if (hasBackup) rollback_install(backupDir);
         return false;
     }
@@ -1034,7 +1062,7 @@ UpdateResult run_update(const Options& options) {
     }
 
     std::cout << CYAN << "[*]" << RESET << " Activating new KSM installation...\n";
-    if (!commit_install(newInstallDir, options.linkCommands)) {
+    if (!commit_install(newInstallDir, options.linkCommands, release)) {
         std::error_code ec;
         fs::remove_all(newInstallDir, ec);
         return UpdateResult::Failed;
