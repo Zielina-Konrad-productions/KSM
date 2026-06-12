@@ -14,28 +14,28 @@ void show_version() {
 }
 
 void show_help() {
-    std::cout << BLUE << "Usage: " << RESET << "ksm <command> [options]\n";
+    std::cout << BLUE << "Usage: " << RESET << CYAN << "ksm" << RESET << " <command> [options]\n";
     std::cout << BLUE << "Commands:" << RESET << '\n';
-    std::cout << "  home            Show KSM help page (khome)\n";
-    std::cout << "  help            Show KSM help page (khome)\n";
-    std::cout << "  update          Interactive KSM updater (kupgr)\n";
-    std::cout << "  upgrade         Interactive KSM updater (kupgr)\n";
-    std::cout << "  useradd         Interactive user creator (kuseradd)\n";
-    std::cout << "  userdel         Interactive user remover (kuserdel)\n";
+    std::cout << "  " << CYAN << "home" << RESET << "            Show KSM help page (khome)\n";
+    std::cout << "  " << CYAN << "help" << RESET << "            Show KSM help page (khome)\n";
+    std::cout << "  " << CYAN << "update" << RESET << "          Interactive KSM updater (kupgr)\n";
+    std::cout << "  " << CYAN << "upgrade" << RESET << "         Interactive KSM updater (kupgr)\n";
+    std::cout << "  " << CYAN << "useradd" << RESET << "         Interactive user creator (kuseradd)\n";
+    std::cout << "  " << CYAN << "userdel" << RESET << "         Interactive user remover (kuserdel)\n";
     std::cout << '\n';
     std::cout << BLUE << "Options:" << RESET << '\n';
-    std::cout << "  --help, -h      Show this wrapper help\n";
-    std::cout << "  --version, -v   Show version information\n";
+    std::cout << "  " << CYAN << "--help, -h" << RESET << "      Show this wrapper help\n";
+    std::cout << "  " << CYAN << "--version, -v" << RESET << "   Show version information\n";
     std::cout << '\n';
     std::cout << BLUE << "khome pages:" << RESET << '\n';
-    std::cout << "  ksm help -p1    Show page 1\n";
-    std::cout << "  ksm help -pN    Show page N when it exists\n";
-    std::cout << "  ksm help --all  Show all pages\n";
+    std::cout << "  " << CYAN << "ksm help -p1" << RESET << "    Show page 1\n";
+    std::cout << "  " << CYAN << "ksm help -pN" << RESET << "    Show page N when it exists\n";
+    std::cout << "  " << CYAN << "ksm help --all" << RESET << "  Show all pages\n";
     std::cout << '\n';
     std::cout << BLUE << "updater examples:" << RESET << '\n';
-    std::cout << "  ksm upgrade     Update from latest release\n";
-    std::cout << "  ksm upgrade -ex Update from latest experimental prerelease\n";
-    std::cout << "  ksm upgrade -f  Force reinstall\n";
+    std::cout << "  " << CYAN << "ksm upgrade" << RESET << "     Update from latest release\n";
+    std::cout << "  " << CYAN << "ksm upgrade -ex" << RESET << " Update from latest experimental prerelease\n";
+    std::cout << "  " << CYAN << "ksm upgrade -f" << RESET << "  Force reinstall\n";
 }
 
 int run_program(const std::string& program, const std::vector<std::string>& args) {

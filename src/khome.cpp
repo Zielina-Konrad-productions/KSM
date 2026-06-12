@@ -17,16 +17,17 @@ void show_version() {
 }
 
 void show_help() {
-    std::cout << BLUE << "Usage: " << RESET << "khome [options]\n";
+    std::cout << BLUE << "Usage: " << RESET << CYAN << "khome" << RESET << " [options]\n";
     std::cout << BLUE << "Pages:" << RESET << '\n';
-    std::cout << "  -p1             Show page 1\n";
-    std::cout << "  -pN             Show page N when it exists\n";
-    std::cout << "  --all, -a       Show all pages\n";
+    std::cout << "  " << CYAN << "-p1" << RESET << "             Show page 1\n";
+    std::cout << "  " << CYAN << "-pN" << RESET << "             Show page N when it exists\n";
+    std::cout << "  " << CYAN << "--all, -a" << RESET << "       Show all pages\n";
     std::cout << '\n';
     std::cout << BLUE << "Options:" << RESET << '\n';
-    std::cout << "  --edit-config, -ed  Edit /opt/KSM/kastiusz.conf\n";
-    std::cout << "  --help, -h          Show this help\n";
-    std::cout << "  --version, -v       Show version information\n";
+    std::cout << "  " << CYAN << "--edit-config, -ed" << RESET << "  Edit "
+              << CYAN << "/opt/KSM/kastiusz.conf" << RESET << '\n';
+    std::cout << "  " << CYAN << "--help, -h" << RESET << "          Show this help\n";
+    std::cout << "  " << CYAN << "--version, -v" << RESET << "       Show version information\n";
 }
 
 void show_banner() {
@@ -36,7 +37,7 @@ void show_banner() {
     std::cout << "                 Help\n";
     std::cout << "========================================\n";
     std::cout << RESET;
-    std::cout << "Version: v" << ksm_version::version() << "\n\n";
+    std::cout << "Version: " << CYAN << "v" << ksm_version::version() << RESET << "\n\n";
 }
 
 void show_page_info() {
@@ -50,24 +51,24 @@ void page1() {
     std::cout << BOLD << "PAGE 1" << RESET << " (KSM overview and configuration)\n\n";
 
     std::cout << BOLD << BLUE << "KSM Information:" << RESET << '\n';
-    std::cout << "  Name: Kastiusz System Manager\n";
-    std::cout << "  Version: v" << ksm_version::version() << '\n';
-    std::cout << "  Install path: /opt/KSM\n";
-    std::cout << "  Config file: /opt/KSM/kastiusz.conf\n\n";
+    std::cout << "  Name: " << CYAN << "Kastiusz System Manager" << RESET << '\n';
+    std::cout << "  Version: " << CYAN << "v" << ksm_version::version() << RESET << '\n';
+    std::cout << "  Install path: " << CYAN << "/opt/KSM" << RESET << '\n';
+    std::cout << "  Config file: " << CYAN << "/opt/KSM/kastiusz.conf" << RESET << "\n\n";
 
     std::cout << BOLD << BLUE << "Programs:" << RESET << '\n';
-    std::cout << "  khome       - This help page\n";
-    std::cout << "  kupgr       - Interactive KSM updater\n";
-    std::cout << "  kuseradd    - Interactive user creator\n";
-    std::cout << "  kuserdel    - Interactive user remover\n";
-    std::cout << "  ksm upgrade - Run kupgr through the wrapper\n";
-    std::cout << "  kupgr -ex   - Use latest experimental prerelease\n";
-    std::cout << "  ksm useradd - Run kuseradd through the wrapper\n";
-    std::cout << "  ksm userdel - Run kuserdel through the wrapper\n\n";
+    std::cout << "  " << CYAN << "khome" << RESET << "       - This help page\n";
+    std::cout << "  " << CYAN << "kupgr" << RESET << "       - Interactive KSM updater\n";
+    std::cout << "  " << CYAN << "kuseradd" << RESET << "    - Interactive user creator\n";
+    std::cout << "  " << CYAN << "kuserdel" << RESET << "    - Interactive user remover\n";
+    std::cout << "  " << CYAN << "ksm upgrade" << RESET << " - Run kupgr through the wrapper\n";
+    std::cout << "  " << CYAN << "kupgr -ex" << RESET << "   - Use latest experimental prerelease\n";
+    std::cout << "  " << CYAN << "ksm useradd" << RESET << " - Run kuseradd through the wrapper\n";
+    std::cout << "  " << CYAN << "ksm userdel" << RESET << " - Run kuserdel through the wrapper\n\n";
 
     std::cout << BOLD << BLUE << "khome configuration:" << RESET << '\n';
-    std::cout << "  khome-default-page-1=true\n";
-    std::cout << "  khome-show-all-pages=false\n\n";
+    std::cout << "  " << CYAN << "khome-default-page-1=true" << RESET << '\n';
+    std::cout << "  " << CYAN << "khome-show-all-pages=false" << RESET << "\n\n";
 
     std::cout << BOLD << "More pages will appear here later." << RESET << '\n';
 }
