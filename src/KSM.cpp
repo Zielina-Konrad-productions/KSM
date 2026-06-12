@@ -20,6 +20,8 @@ void show_help() {
     std::cout << "  " << CYAN << "help" << RESET << "            Show KSM help page (khome)\n";
     std::cout << "  " << CYAN << "update" << RESET << "          Interactive KSM updater (kupgr)\n";
     std::cout << "  " << CYAN << "upgrade" << RESET << "         Interactive KSM updater (kupgr)\n";
+    std::cout << "  " << CYAN << "groupadd" << RESET << "        Interactive group creator (kgroupadd)\n";
+    std::cout << "  " << CYAN << "groupdel" << RESET << "        Interactive group remover (kgroupdel)\n";
     std::cout << "  " << CYAN << "useradd" << RESET << "         Interactive user creator (kuseradd)\n";
     std::cout << "  " << CYAN << "userdel" << RESET << "         Interactive user remover (kuserdel)\n";
     std::cout << '\n';
@@ -119,6 +121,14 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "userdel") {
             return run_installed_tool("kuserdel", forwarded);
+        }
+
+        if (cmd == "groupadd") {
+            return run_installed_tool("kgroupadd", forwarded);
+        }
+
+        if (cmd == "groupdel") {
+            return run_installed_tool("kgroupdel", forwarded);
         }
 
         if (cmd == "update" || cmd == "upgrade") {
