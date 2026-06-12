@@ -36,6 +36,35 @@ fi
 mkdir -p "$BIN_DIR"
 cd "$SRC_DIR"
 
+required_sources=(
+    KSM.cpp
+    khome.cpp
+    kupgr.cpp
+    kuninstall.cpp
+    kgroupadd.cpp
+    kgroupdel.cpp
+    kuseradd.cpp
+    kuserdel.cpp
+)
+
+required_outputs=(
+    ksm
+    khome
+    kupgr
+    kuninstall
+    kgroupadd
+    kgroupdel
+    kuseradd
+    kuserdel
+)
+
+for source in "${required_sources[@]}"; do
+    if [ ! -f "$source" ]; then
+        fail "Required source is missing: $source"
+        exit 1
+    fi
+done
+
 printf "%b---------------------------Building KSM---------------------------%b\n" "$BLUE" "$RESET"
 
 for file in *.cpp; do
@@ -58,6 +87,13 @@ for file in *.cpp; do
     mv -f "$out" "$BIN_DIR/$out_name"
     chmod +x "$BIN_DIR/$out_name"
     ok "Installed $out_name"
+done
+
+for output in "${required_outputs[@]}"; do
+    if [ ! -x "$BIN_DIR/$output" ]; then
+        fail "Required binary was not built: $output"
+        exit 1
+    fi
 done
 
 printf "%b-----------------------------DONE---------------------------------%b\n" "$GREEN" "$RESET"
