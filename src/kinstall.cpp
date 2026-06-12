@@ -167,7 +167,7 @@ void draw(const Options& options, int cursor) {
     draw_row(4, cursor, "Start installation    Enter", true);
     draw_row(5, cursor, "Cancel                Enter or q");
 
-    std::cout << "\nCommands after install: ksm, khome, kuseradd, kuserdel\n";
+    std::cout << "\nCommands after install: ksm, khome, kupgr, kuseradd, kuserdel\n";
     if (!options.message.empty()) std::cout << '\n' << YELLOW << options.message << RESET << '\n';
     std::cout << std::flush;
 }
@@ -351,7 +351,8 @@ int run_installation(Terminal& terminal, const Options& options) {
     if (ok) {
         std::cout << GREEN << "[+]" << RESET << " Installation complete.\n";
         std::cout << "Run: " << CYAN << "ksm" << RESET << ", " << CYAN << "khome" << RESET
-                  << ", " << CYAN << "ksm useradd" << RESET << '\n';
+                  << ", " << CYAN << "ksm upgrade" << RESET << ", "
+                  << CYAN << "ksm useradd" << RESET << '\n';
         return 0;
     }
 

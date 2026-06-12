@@ -57,8 +57,11 @@ void page1() {
 
     std::cout << BOLD << BLUE << "Programs:" << RESET << '\n';
     std::cout << "  khome       - This help page\n";
+    std::cout << "  kupgr       - Interactive KSM updater\n";
     std::cout << "  kuseradd    - Interactive user creator\n";
     std::cout << "  kuserdel    - Interactive user remover\n";
+    std::cout << "  ksm upgrade - Run kupgr through the wrapper\n";
+    std::cout << "  kupgr -ex   - Use latest experimental prerelease\n";
     std::cout << "  ksm useradd - Run kuseradd through the wrapper\n";
     std::cout << "  ksm userdel - Run kuserdel through the wrapper\n\n";
 

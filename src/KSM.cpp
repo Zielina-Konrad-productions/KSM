@@ -18,6 +18,8 @@ void show_help() {
     std::cout << BLUE << "Commands:" << RESET << '\n';
     std::cout << "  home            Show KSM help page (khome)\n";
     std::cout << "  help            Show KSM help page (khome)\n";
+    std::cout << "  update          Interactive KSM updater (kupgr)\n";
+    std::cout << "  upgrade         Interactive KSM updater (kupgr)\n";
     std::cout << "  useradd         Interactive user creator (kuseradd)\n";
     std::cout << "  userdel         Interactive user remover (kuserdel)\n";
     std::cout << '\n';
@@ -29,6 +31,11 @@ void show_help() {
     std::cout << "  ksm help -p1    Show page 1\n";
     std::cout << "  ksm help -pN    Show page N when it exists\n";
     std::cout << "  ksm help --all  Show all pages\n";
+    std::cout << '\n';
+    std::cout << BLUE << "updater examples:" << RESET << '\n';
+    std::cout << "  ksm upgrade     Update from latest release\n";
+    std::cout << "  ksm upgrade -ex Update from latest experimental prerelease\n";
+    std::cout << "  ksm upgrade -f  Force reinstall\n";
 }
 
 int run_program(const std::string& program, const std::vector<std::string>& args) {
@@ -112,6 +119,10 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "userdel") {
             return run_installed_tool("kuserdel", forwarded);
+        }
+
+        if (cmd == "update" || cmd == "upgrade") {
+            return run_installed_tool("kupgr", forwarded);
         }
 
         std::cerr << RED << "unknown command:" << RESET << " " << cmd << '\n';
