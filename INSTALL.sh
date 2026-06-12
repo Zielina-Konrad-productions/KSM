@@ -20,7 +20,7 @@ trap 'printf "%b[x]%b Installer bootstrap failed.\n" "$RED" "$RESET" >&2' ERR
 
 if [ "$(id -u)" -ne 0 ]; then
     printf "%bRun with sudo!%b\n" "$RED" "$RESET"
-    printf "Use: sudo ./INSTALL.sh\n"
+    printf "Use: sudo bash ./INSTALL.sh\n"
     exit 1
 fi
 
