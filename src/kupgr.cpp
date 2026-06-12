@@ -217,6 +217,25 @@ std::string normalize_version(std::string value) {
     return value;
 }
 
+std::string lower_text(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return value;
+}
+
+bool is_prerelease_version(const std::string& version) {
+    const std::string lower = lower_text(version);
+    return lower.find("pre") != std::string::npos ||
+           lower.find("alpha") != std::string::npos ||
+           lower.find("beta") != std::string::npos ||
+           lower.find("rc") != std::string::npos;
+}
+
+bool installing_stable_over_prerelease(const Options& options) {
+    return !options.experimental && is_prerelease_version(options.localVersion);
+}
+
 std::string json_unescape(const std::string& value) {
     std::string out;
     bool escape = false;
@@ -739,6 +758,10 @@ bool confirm_update(const Options& options) {
     std::cout << "Force reinstall     : " << (options.force ? "yes" : "no") << '\n';
     std::cout << "Build project       : " << (options.buildProject ? "yes" : "no") << '\n';
     std::cout << "Link commands       : " << (options.linkCommands ? "yes" : "no") << "\n\n";
+    if (installing_stable_over_prerelease(options)) {
+        std::cout << YELLOW << "Warning:" << RESET
+                  << " installed version looks experimental/pre; stable release will be installed.\n\n";
+    }
     std::cout << "Press " << BLUE << "Enter" << RESET << " or " << BLUE << "y" << RESET
               << " to update, any other key to return.\n";
 
@@ -789,6 +812,23 @@ bool preserve_config_file(const fs::path& sourceDir) {
         return false;
     }
     log_line("config: preserved installed kastiusz.conf");
+    return true;
+}
+
+bool write_release_version_file(const fs::path& sourceDir, const ReleaseInfo& release) {
+    std::ofstream file(sourceDir / "VERSION.txt", std::ios::trunc);
+    if (!file.is_open()) {
+        log_line("version: cannot write VERSION.txt");
+        return false;
+    }
+
+    file << release.version << '\n';
+    if (!file.good()) {
+        log_line("version: failed while writing VERSION.txt");
+        return false;
+    }
+
+    log_line("version: wrote VERSION.txt as " + release.version);
     return true;
 }
 
@@ -935,7 +975,15 @@ UpdateResult run_update(const Options& options) {
     log_line("release tag: " + release.tag);
     log_line("remote: " + release.version);
 
+    const bool stableOverPrerelease = !options.experimental && is_prerelease_version(options.localVersion);
+    if (stableOverPrerelease) {
+        std::cout << YELLOW << "[!]" << RESET
+                  << " Installed version looks experimental/pre. Installing latest stable release.\n";
+        log_line("warning: stable install over prerelease " + options.localVersion);
+    }
+
     if (!options.force && !options.localVersion.empty() &&
+        !stableOverPrerelease &&
         compare_versions(options.localVersion, release.version) >= 0) {
         std::cout << GREEN << "[+]" << RESET << " KSM is up to date.\n";
         log_line("update: already up to date");
@@ -960,6 +1008,11 @@ UpdateResult run_update(const Options& options) {
         if (!preserve_config_file(*sourceDir)) {
             return UpdateResult::Failed;
         }
+    }
+
+    std::cout << CYAN << "[*]" << RESET << " Writing VERSION.txt as v" << release.version << "...\n";
+    if (!write_release_version_file(*sourceDir, release)) {
+        return UpdateResult::Failed;
     }
 
     if (options.buildProject) {
@@ -1012,12 +1065,17 @@ bool validate_before_update(Options& options) {
     }
 
     if (!options.force && !options.localVersion.empty() &&
+        !installing_stable_over_prerelease(options) &&
         compare_versions(options.localVersion, options.remoteVersion) >= 0) {
         options.message = "KSM is up to date.";
         return false;
     }
 
-    options.message.clear();
+    if (installing_stable_over_prerelease(options)) {
+        options.message = "Warning: installed version looks experimental/pre; stable release will be installed.";
+    } else {
+        options.message.clear();
+    }
     return true;
 }
 
@@ -1060,7 +1118,9 @@ void refresh_versions(Options& options) {
     options.remoteRelease = *fetched;
     options.remoteVersion = fetched->version;
 
-    if (!options.force && !options.localVersion.empty() &&
+    if (installing_stable_over_prerelease(options)) {
+        options.message = "Warning: installed version looks experimental/pre; stable release is available.";
+    } else if (!options.force && !options.localVersion.empty() &&
         compare_versions(options.localVersion, options.remoteVersion) >= 0) {
         options.message = "KSM is up to date.";
     } else {
