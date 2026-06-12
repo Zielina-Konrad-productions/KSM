@@ -46,7 +46,7 @@ fi
 download_stdout() {
     local url="$1"
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "$url"
+        curl -fsSL -H "Accept: application/vnd.github+json" "$url"
         return
     fi
     if command -v wget >/dev/null 2>&1; then
@@ -68,6 +68,19 @@ download_file() {
         return
     fi
     return 127
+}
+
+run_interactive_installer() {
+    local installer="$1"
+    shift
+
+    if [ -r /dev/tty ]; then
+        exec bash "$installer" "$@" < /dev/tty
+    fi
+
+    fail "Interactive installer needs a real terminal."
+    printf "Download KSM and run: sudo bash ./INSTALL.sh\n" >&2
+    exit 1
 }
 
 release_tarball_url() {
@@ -106,4 +119,4 @@ fi
 
 chmod +x "$SOURCE_DIR/INSTALL.sh"
 ok "Installer ready."
-exec "$SOURCE_DIR/INSTALL.sh" "$@"
+run_interactive_installer "$SOURCE_DIR/INSTALL.sh" "$@"

@@ -77,7 +77,7 @@ private:
 };
 
 void clear_screen() {
-    std::cout << "\033[2J\033[H";
+    std::cout << "\033[H\033[J";
 }
 
 void banner() {
@@ -371,6 +371,12 @@ int run_tui(Options options) {
     if (geteuid() != 0) {
         banner();
         std::cerr << RED << "Run with sudo!" << RESET << '\n';
+        return 1;
+    }
+
+    if (!isatty(STDIN_FILENO)) {
+        banner();
+        std::cerr << RED << "ERROR:" << RESET << " interactive installer needs a real terminal.\n";
         return 1;
     }
 

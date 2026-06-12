@@ -24,6 +24,14 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
+if [ ! -t 0 ]; then
+    if [ -r /dev/tty ]; then
+        exec bash "$0" "$@" < /dev/tty
+    fi
+    printf "%bERROR:%b interactive installer needs a real terminal.\n" "$RED" "$RESET"
+    exit 1
+fi
+
 detect_pm() {
     command -v apt-get >/dev/null 2>&1 && echo "apt" && return
     command -v zypper >/dev/null 2>&1 && echo "zypper" && return
