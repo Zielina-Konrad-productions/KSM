@@ -289,13 +289,22 @@ int effective_count(const Options& options) {
     return options.many ? options.count : 1;
 }
 
+std::string effective_username_template(const Options& options) {
+    std::string usernameTemplate = trim(options.usernameTemplate);
+    if (effective_count(options) > 1 && usernameTemplate.find("$i") == std::string::npos) {
+        usernameTemplate += "$i";
+    }
+    return usernameTemplate;
+}
+
 std::vector<UserPlan> build_plan(const Options& options) {
     std::vector<UserPlan> plan;
+    const std::string usernameTemplate = effective_username_template(options);
 
     for (int i = 1; i <= effective_count(options); ++i) {
         UserPlan user;
         user.index = i;
-        user.username = replace_index(options.usernameTemplate, i);
+        user.username = replace_index(usernameTemplate, i);
         user.password = replace_index(options.passwordTemplate, i);
         user.fullName = replace_index(options.fullNameTemplate, i);
         user.shell = replace_index(options.shellTemplate, i);
@@ -501,7 +510,9 @@ bool valid_username(const std::string& username) {
     if (username.empty()) {
         return false;
     }
-    if (!std::islower(static_cast<unsigned char>(username[0])) && username[0] != '_') {
+    if (!std::islower(static_cast<unsigned char>(username[0])) &&
+        !std::isdigit(static_cast<unsigned char>(username[0])) &&
+        username[0] != '_') {
         return false;
     }
     return std::all_of(username.begin(), username.end(), [](unsigned char ch) {
