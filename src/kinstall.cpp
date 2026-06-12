@@ -167,7 +167,7 @@ void draw(const Options& options, int cursor) {
     draw_row(4, cursor, "Start installation    Enter", true);
     draw_row(5, cursor, "Cancel                Enter or q");
 
-    std::cout << "\nCommands after install: ksm, khome, kupgr, kgroupadd, kgroupdel, kuseradd, kuserdel\n";
+    std::cout << "\nCommands after install: ksm, khome, kupgr, kuninstall, kgroupadd, kgroupdel, kuseradd, kuserdel\n";
     if (!options.message.empty()) std::cout << '\n' << YELLOW << options.message << RESET << '\n';
     std::cout << std::flush;
 }

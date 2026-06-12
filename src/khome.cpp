@@ -59,11 +59,13 @@ void page1() {
     std::cout << BOLD << BLUE << "Programs:" << RESET << '\n';
     std::cout << "  " << CYAN << "khome" << RESET << "       - This help page\n";
     std::cout << "  " << CYAN << "kupgr" << RESET << "       - Interactive KSM updater\n";
+    std::cout << "  " << CYAN << "kuninstall" << RESET << " - Interactive KSM uninstaller\n";
     std::cout << "  " << CYAN << "kgroupadd" << RESET << "   - Interactive group creator\n";
     std::cout << "  " << CYAN << "kgroupdel" << RESET << "   - Interactive group remover\n";
     std::cout << "  " << CYAN << "kuseradd" << RESET << "    - Interactive user creator\n";
     std::cout << "  " << CYAN << "kuserdel" << RESET << "    - Interactive user remover\n";
     std::cout << "  " << CYAN << "ksm upgrade" << RESET << " - Run kupgr through the wrapper\n";
+    std::cout << "  " << CYAN << "ksm uninstall" << RESET << " - Run kuninstall through the wrapper\n";
     std::cout << "  " << CYAN << "kupgr -ex" << RESET << "   - Use latest experimental prerelease\n";
     std::cout << "  " << CYAN << "ksm groupadd" << RESET << " - Run kgroupadd through the wrapper\n";
     std::cout << "  " << CYAN << "ksm groupdel" << RESET << " - Run kgroupdel through the wrapper\n";

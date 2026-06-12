@@ -11,6 +11,7 @@ Kastiusz System Manager, or **KSM**, is a terminal toolkit for Linux system mana
 - `ksm` wrapper for the main tools
 - `khome` built-in help pages
 - `kupgr` interactive updater from GitHub Releases
+- `kuninstall` interactive uninstaller
 - `kuseradd` interactive user creator
 - `kuserdel` interactive user remover
 - `kgroupadd` interactive group creator
@@ -39,13 +40,13 @@ The installer builds a temporary C++ panel, installs KSM to `/opt/KSM`, builds b
 ## Uninstall
 
 ```bash
-sudo bash ./UNINSTALL.sh
+sudo kuninstall
 ```
 
-After installation, the uninstaller is also available from the installed tree:
+The repository wrapper can also launch the installed uninstaller:
 
 ```bash
-sudo bash /opt/KSM/UNINSTALL.sh
+sudo bash ./UNINSTALL.sh
 ```
 
 The uninstaller removes `/opt/KSM` and only removes `/usr/bin` command links that point to `/opt/KSM/bin`.
@@ -57,6 +58,7 @@ ksm
 ksm help
 ksm upgrade
 ksm upgrade -ex
+ksm uninstall
 ksm useradd
 ksm userdel
 ksm groupadd
@@ -68,6 +70,7 @@ Direct tools are also available after install:
 ```bash
 khome
 kupgr
+kuninstall
 kuseradd
 kuserdel
 kgroupadd
@@ -103,6 +106,7 @@ src/
   KSM.cpp
   khome.cpp
   kupgr.cpp
+  kuninstall.cpp
   kuseradd.cpp
   kuserdel.cpp
   kgroupadd.cpp
