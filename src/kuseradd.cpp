@@ -15,6 +15,7 @@ enum class Key {
     Down,
     Left,
     Right,
+    Tab,
     Enter,
     Backspace,
     Escape,
@@ -112,6 +113,7 @@ void help() {
     std::cout << BLUE << "Controls:" << RESET << '\n';
     std::cout << "  Up/Down       Move between fields\n";
     std::cout << "  Left/Right    Change checkboxes and counters\n";
+    std::cout << "  Tab           Jump to Create/Top\n";
     std::cout << "  Enter         Edit text, toggle, or run action\n";
     std::cout << "  q             Cancel\n\n";
     std::cout << BLUE << "Template value:" << RESET << '\n';
@@ -143,6 +145,9 @@ KeyPress read_key() {
 
     if (c == 3) {
         return {Key::CtrlC, '\0'};
+    }
+    if (c == '\t') {
+        return {Key::Tab, '\0'};
     }
     if (c == '\n' || c == '\r') {
         return {Key::Enter, '\0'};
@@ -344,6 +349,7 @@ void draw(const Options& options, int selected) {
     clear_screen();
     banner();
     std::cout << CYAN << "Arrows:" << RESET << " move/change  "
+              << CYAN << "Tab:" << RESET << " jump  "
               << CYAN << "Enter:" << RESET << " edit/toggle/action  "
               << CYAN << "q:" << RESET << " cancel\n";
     std::cout << "Use $i in templates for multi-user generation.\n\n";
@@ -749,6 +755,8 @@ int run_tui() {
             move_selection(selected, -1);
         } else if (key.key == Key::Down) {
             move_selection(selected, 1);
+        } else if (key.key == Key::Tab) {
+            selected = selected < 10 ? 10 : 0;
         } else if (key.key == Key::Left) {
             adjust_field(options, selected, -1);
         } else if (key.key == Key::Right) {

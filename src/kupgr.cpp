@@ -26,6 +26,7 @@ constexpr const char* kReleasesApiUrl =
 enum class Key {
     Up,
     Down,
+    Tab,
     Enter,
     Escape,
     CtrlC,
@@ -198,6 +199,7 @@ void help() {
     std::cout << "  --version, -v        Show version information\n\n";
     std::cout << BLUE << "Controls:" << RESET << '\n';
     std::cout << "  Up/Down         Move\n";
+    std::cout << "  Tab             Jump to Start/Top\n";
     std::cout << "  Enter           Toggle option, refresh, or run action\n";
     std::cout << "  q               Cancel\n";
 }
@@ -604,6 +606,7 @@ KeyPress read_key() {
     char c = '\0';
     if (read(STDIN_FILENO, &c, 1) != 1) return {Key::Unknown, '\0'};
     if (c == 3) return {Key::CtrlC, '\0'};
+    if (c == '\t') return {Key::Tab, '\0'};
     if (c == '\n' || c == '\r') return {Key::Enter, '\0'};
     if (c == 27) {
         char second = '\0';
@@ -650,6 +653,7 @@ void draw(const Options& options, int cursor) {
     clear_screen();
     banner();
     std::cout << CYAN << "Arrows:" << RESET << " move  "
+              << CYAN << "Tab:" << RESET << " jump  "
               << CYAN << "Enter:" << RESET << " toggle/action  "
               << CYAN << "q:" << RESET << " cancel\n\n";
 
@@ -1180,6 +1184,8 @@ int run_tui(Options options) {
             move_cursor(cursor, -1);
         } else if (key.key == Key::Down) {
             move_cursor(cursor, 1);
+        } else if (key.key == Key::Tab) {
+            cursor = cursor < 7 ? 7 : 0;
         } else if (key.key == Key::Enter) {
             options.message.clear();
             if (cursor == 0) {

@@ -375,7 +375,7 @@ int run_tui(Options options) {
     }
 
     Terminal terminal;
-    int cursor = 0;
+    int cursor = 4;
 
     while (true) {
         draw(options, cursor);

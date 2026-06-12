@@ -13,6 +13,7 @@ namespace {
 enum class Key {
     Up,
     Down,
+    Tab,
     Enter,
     Escape,
     CtrlC,
@@ -97,6 +98,7 @@ void help() {
     std::cout << "Interactive terminal GUI for deleting users.\n\n";
     std::cout << BLUE << "Controls:" << RESET << '\n';
     std::cout << "  Up/Down       Move\n";
+    std::cout << "  Tab           Jump to settings/Top\n";
     std::cout << "  Enter         Select user, toggle option, or run action\n";
     std::cout << "  q             Cancel\n";
 }
@@ -119,6 +121,7 @@ KeyPress read_key() {
     char c = '\0';
     if (read(STDIN_FILENO, &c, 1) != 1) return {Key::Unknown, '\0'};
     if (c == 3) return {Key::CtrlC, '\0'};
+    if (c == '\t') return {Key::Tab, '\0'};
     if (c == '\n' || c == '\r') return {Key::Enter, '\0'};
     if (c == 27) {
         char second = '\0';
@@ -181,6 +184,7 @@ void draw(const std::vector<UserEntry>& users, const Options& options, int curso
     clear_screen();
     banner();
     std::cout << CYAN << "Arrows:" << RESET << " move  "
+              << CYAN << "Tab:" << RESET << " settings  "
               << CYAN << "Enter:" << RESET << " select/toggle/action  "
               << CYAN << "q:" << RESET << " cancel\n";
     std::cout << "Selected users: " << GREEN << selected_count(users) << RESET << "\n\n";
@@ -334,6 +338,9 @@ int run_tui() {
             move_cursor(cursor, -1, maxRow);
         } else if (key.key == Key::Down) {
             move_cursor(cursor, 1, maxRow);
+        } else if (key.key == Key::Tab) {
+            cursor = cursor < static_cast<int>(users.size()) ? static_cast<int>(users.size()) : 0;
+            offset = 0;
         } else if (key.key == Key::Enter) {
             const int removeHomeRow = static_cast<int>(users.size());
             const int forceRow = removeHomeRow + 1;
