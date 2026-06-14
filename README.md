@@ -56,6 +56,7 @@ The uninstaller removes `/opt/KSM` and only removes `/usr/bin` command links tha
 
 ```bash
 khome
+khome -ui
 kupgr
 kuninstall
 kuseradd
@@ -70,6 +71,7 @@ KSM wrapper alternatives:
 ```bash
 ksm
 ksm home
+ksm home -ui
 ksm upgrade
 ksm upgrade -ex
 ksm uninstall

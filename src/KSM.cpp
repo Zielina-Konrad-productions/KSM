@@ -29,6 +29,7 @@ void show_help() {
               << CYAN << "--help/-h" << RESET << ", "
               << CYAN << "--version/-v" << RESET << '\n';
     std::cout << DIM << "Full tool list: khome -p2 or ksm home -p2" << RESET << '\n';
+    std::cout << DIM << "Interactive home: khome -ui or ksm home -ui" << RESET << '\n';
 }
 
 int run_program(const std::string& program, const std::vector<std::string>& args) {
