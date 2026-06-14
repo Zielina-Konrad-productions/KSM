@@ -20,8 +20,10 @@ void show_help() {
     std::cout << "  " << CYAN << "upgrade" << RESET << "    Update KSM\n";
     std::cout << "  " << CYAN << "uninstall" << RESET << "  Uninstall KSM\n";
     std::cout << "  " << CYAN << "useradd" << RESET << "    Add users\n";
+    std::cout << "  " << CYAN << "usermod" << RESET << "    Modify users\n";
     std::cout << "  " << CYAN << "userdel" << RESET << "    Delete users\n";
     std::cout << "  " << CYAN << "groupadd" << RESET << "   Add groups\n";
+    std::cout << "  " << CYAN << "groupmod" << RESET << "   Modify groups\n";
     std::cout << "  " << CYAN << "groupdel" << RESET << "   Delete groups\n";
     std::cout << "  " << CYAN << "netcfg" << RESET << "     Configure network interface\n";
     std::cout << '\n';
@@ -115,8 +117,16 @@ int main(int argc, char* argv[]) {
             return run_installed_tool("kuserdel", forwarded);
         }
 
+        if (cmd == "usermod") {
+            return run_installed_tool("kusermod", forwarded);
+        }
+
         if (cmd == "groupadd") {
             return run_installed_tool("kgroupadd", forwarded);
+        }
+
+        if (cmd == "groupmod") {
+            return run_installed_tool("kgroupmod", forwarded);
         }
 
         if (cmd == "groupdel") {

@@ -167,7 +167,7 @@ void draw(const Options& options, int cursor) {
     draw_row(4, cursor, "Start installation    Enter", true);
     draw_row(5, cursor, "Cancel                Enter or q");
 
-    std::cout << "\nCommands after install: ksm, khome, kupgr, kuninstall, kgroupadd, kgroupdel, kuseradd, kuserdel, knetcfg\n";
+    std::cout << "\nCommands after install: ksm, khome, kupgr, kuninstall, kgroupadd, kgroupmod, kgroupdel, kuseradd, kusermod, kuserdel, knetcfg\n";
     if (!options.message.empty()) std::cout << '\n' << YELLOW << options.message << RESET << '\n';
     std::cout << std::flush;
 }
@@ -354,7 +354,9 @@ int run_installation(Terminal& terminal, const Options& options) {
                   << ", " << CYAN << "ksm upgrade" << RESET << ", "
                   << CYAN << "knetcfg" << RESET << ", "
                   << CYAN << "ksm groupadd" << RESET << ", "
-                  << CYAN << "ksm useradd" << RESET << '\n';
+                  << CYAN << "ksm groupmod" << RESET << ", "
+                  << CYAN << "ksm useradd" << RESET << ", "
+                  << CYAN << "ksm usermod" << RESET << '\n';
         return 0;
     }
 

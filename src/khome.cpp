@@ -177,10 +177,14 @@ void page2() {
               << DIM << " | alt: ksm uninstall" << RESET << '\n';
     std::cout << "  " << CYAN << "kuseradd" << RESET << "    - User creator"
               << DIM << " | alt: ksm useradd" << RESET << '\n';
+    std::cout << "  " << CYAN << "kusermod" << RESET << "    - User modifier"
+              << DIM << " | alt: ksm usermod" << RESET << '\n';
     std::cout << "  " << CYAN << "kuserdel" << RESET << "    - User remover"
               << DIM << " | alt: ksm userdel" << RESET << '\n';
     std::cout << "  " << CYAN << "kgroupadd" << RESET << "   - Group creator"
               << DIM << " | alt: ksm groupadd" << RESET << '\n';
+    std::cout << "  " << CYAN << "kgroupmod" << RESET << "   - Group modifier"
+              << DIM << " | alt: ksm groupmod" << RESET << '\n';
     std::cout << "  " << CYAN << "kgroupdel" << RESET << "   - Group remover"
               << DIM << " | alt: ksm groupdel" << RESET << '\n';
     std::cout << "  " << CYAN << "knetcfg" << RESET << "     - Network interface config"

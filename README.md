@@ -13,8 +13,10 @@ Kastiusz System Manager, or **KSM**, is a terminal toolkit for Linux system mana
 - `kupgr` interactive updater from GitHub Releases
 - `kuninstall` interactive uninstaller
 - `kuseradd` interactive user creator
+- `kusermod` interactive user modifier
 - `kuserdel` interactive user remover
 - `kgroupadd` interactive group creator
+- `kgroupmod` interactive group modifier
 - `kgroupdel` interactive group remover
 - `knetcfg` interactive network interface configuration
 - ANSI + termios interface, no ncurses
@@ -60,8 +62,10 @@ khome -ui
 kupgr
 kuninstall
 kuseradd
+kusermod
 kuserdel
 kgroupadd
+kgroupmod
 kgroupdel
 knetcfg
 ```
@@ -76,8 +80,10 @@ ksm upgrade
 ksm upgrade -ex
 ksm uninstall
 ksm useradd
+ksm usermod
 ksm userdel
 ksm groupadd
+ksm groupmod
 ksm groupdel
 ksm netcfg
 ```
@@ -113,8 +119,10 @@ src/
   kupgr.cpp
   kuninstall.cpp
   kuseradd.cpp
+  kusermod.cpp
   kuserdel.cpp
   kgroupadd.cpp
+  kgroupmod.cpp
   kgroupdel.cpp
   knetcfg.cpp
   kinstall.cpp
