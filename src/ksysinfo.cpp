@@ -175,6 +175,7 @@ int main(int argc, char* argv[]) {
             help();
             return 0;
         }
+        if (arg == "--panel") continue;
         std::cerr << RED << "unknown option:" << RESET << " " << arg << '\n';
         std::cerr << "run 'ksysinfo --help' to list options.\n";
         return 1;

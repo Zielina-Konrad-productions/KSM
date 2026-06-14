@@ -493,6 +493,7 @@ int main(int argc, char* argv[]) {
             help();
             return 0;
         }
+        if (arg == "--panel") continue;
         if (options.path.empty()) {
             options.path = arg;
             continue;

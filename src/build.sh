@@ -50,7 +50,18 @@ build_one() {
     out="/tmp/${out_name}.$$"
 
     info "Compiling $file -> $out_name"
-    "$CXX_CMD" "$file" -std=c++20 -O2 -I "$SRC_DIR/common" -o "$out"
+    if [ "$name" = "kcontrol" ]; then
+        if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists ftxui; then
+            ftxui_flags="$(pkg-config --cflags --libs ftxui)"
+            # shellcheck disable=SC2086
+            "$CXX_CMD" "$file" -std=c++20 -O2 -I "$SRC_DIR/common" -o "$out" $ftxui_flags
+        else
+            "$CXX_CMD" "$file" -std=c++20 -O2 -I "$SRC_DIR/common" -o "$out" \
+                -lftxui-component -lftxui-dom -lftxui-screen
+        fi
+    else
+        "$CXX_CMD" "$file" -std=c++20 -O2 -I "$SRC_DIR/common" -o "$out"
+    fi
     ok "Built $out_name"
 
     mv -f "$out" "$BIN_DIR/$out_name"

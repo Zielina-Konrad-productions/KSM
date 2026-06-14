@@ -350,6 +350,7 @@ int main(int argc, char* argv[]) {
             options.force = true;
             continue;
         }
+        if (arg == "--panel") continue;
 
         std::cerr << RED << "unknown option:" << RESET << " " << arg << '\n';
         std::cerr << "run 'kuninstall --help' to list options.\n";

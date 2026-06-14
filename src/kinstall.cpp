@@ -208,21 +208,21 @@ std::vector<std::string> dependencies_for(const std::string& pm) {
         return {
             "g++", "sudo", "coreutils", "nano", "passwd",
             "systemd", "systemd-resolved", "iproute2", "procps", "util-linux",
-            "openssh-server", "ufw"
+            "openssh-server", "ufw", "pkg-config", "libftxui-dev"
         };
     }
     if (pm == "zypper") {
         return {
             "gcc-c++", "sudo", "coreutils", "nano", "shadow",
             "systemd", "iproute2", "procps", "util-linux",
-            "openssh", "firewalld"
+            "openssh", "firewalld", "pkgconf-pkg-config", "ftxui-devel"
         };
     }
     if (pm == "dnf") {
         return {
             "gcc-c++", "sudo", "coreutils", "nano", "shadow-utils",
             "systemd", "iproute", "procps-ng", "util-linux",
-            "openssh-server", "firewalld"
+            "openssh-server", "firewalld", "pkgconf-pkg-config", "ftxui-devel"
         };
     }
     return {};

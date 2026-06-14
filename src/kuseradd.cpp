@@ -794,6 +794,7 @@ int main(int argc, char* argv[]) {
             help();
             return 0;
         }
+        if (arg == "--panel") continue;
     }
 
     return run_tui();

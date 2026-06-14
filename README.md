@@ -1,15 +1,15 @@
 # Kastiusz System Manager
 
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-blue)
-![Terminal](https://img.shields.io/badge/UI-ANSI%20%2B%20termios-cyan)
+![Terminal](https://img.shields.io/badge/UI-ANSI%2Btermios%20%2B%20FTXUI-cyan)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Kastiusz System Manager, or **KSM**, is a terminal toolkit for Linux system management. It uses a blue ANSI interface, no ncurses, and small focused C++ tools.
+Kastiusz System Manager, or **KSM**, is a terminal toolkit for Linux system management. It uses blue terminal interfaces, focused C++ tools, and an FTXUI based control center.
 
 ## Features
 
 - `ksm` wrapper for the main tools
-- `kcontrol` YaST-style KSM control center
+- `kcontrol` FTXUI based YaST-style KSM control center
 - `khome` built-in help pages
 - `kupgr` interactive updater from GitHub Releases
 - `kuninstall` interactive uninstaller
@@ -25,7 +25,7 @@ Kastiusz System Manager, or **KSM**, is a terminal toolkit for Linux system mana
 - `kgroupmod` interactive group modifier
 - `kgroupdel` interactive group remover
 - `knetcfg` interactive network interface configuration
-- ANSI + termios interface, no ncurses
+- ANSI + termios tools, with `FTXUI` used for the main control center
 - C++20 build through `src/build.sh`
 
 ## Install With Curl
@@ -50,9 +50,9 @@ The installer builds a temporary C++ panel, installs KSM to `/opt/KSM`, builds b
 
 The installer can install the needed packages automatically:
 
-- Debian/Ubuntu: `g++ sudo coreutils nano passwd systemd systemd-resolved iproute2 procps util-linux openssh-server ufw`
-- openSUSE: `gcc-c++ sudo coreutils nano shadow systemd iproute2 procps util-linux openssh firewalld`
-- Fedora/RHEL: `gcc-c++ sudo coreutils nano shadow-utils systemd iproute procps-ng util-linux openssh-server firewalld`
+- Debian/Ubuntu: `g++ sudo coreutils nano passwd systemd systemd-resolved iproute2 procps util-linux openssh-server ufw pkg-config libftxui-dev`
+- openSUSE: `gcc-c++ sudo coreutils nano shadow systemd iproute2 procps util-linux openssh firewalld pkgconf-pkg-config ftxui-devel`
+- Fedora/RHEL: `gcc-c++ sudo coreutils nano shadow-utils systemd iproute procps-ng util-linux openssh-server firewalld pkgconf-pkg-config ftxui-devel`
 
 ## Uninstall
 

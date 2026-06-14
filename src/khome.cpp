@@ -427,6 +427,7 @@ int main(int argc, char* argv[]) {
     bool selected_version = false;
     bool selected_config = false;
     bool selected_ui = false;
+    bool selected_panel = false;
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -440,6 +441,9 @@ int main(int argc, char* argv[]) {
             selected_ui = true;
         } else if (arg == "--edit-config" || arg == "-ed") {
             selected_config = true;
+        } else if (arg == "--panel") {
+            selected_panel = true;
+            continue;
         } else {
             int page = 0;
             if (parse_page_arg(arg, page)) {
@@ -452,12 +456,14 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    if (selected_config && (argc > 2)) {
+    const int option_count = argc - 1 - (selected_panel ? 1 : 0);
+
+    if (selected_config && option_count > 1) {
         std::cerr << RED << "ERROR:" << RESET << " --edit-config / -ed must be used alone\n";
         return 1;
     }
 
-    if (selected_ui && argc > 2) {
+    if (selected_ui && option_count > 1) {
         std::cerr << RED << "ERROR:" << RESET << " --ui / -ui must be used alone\n";
         return 1;
     }

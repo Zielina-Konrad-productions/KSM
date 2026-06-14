@@ -1357,6 +1357,7 @@ int main(int argc, char* argv[]) {
             options.experimental = true;
             continue;
         }
+        if (arg == "--panel") continue;
 
         std::cerr << RED << "unknown option:" << RESET << " " << arg << '\n';
         std::cerr << "run 'kupgr --help' to list options.\n";
