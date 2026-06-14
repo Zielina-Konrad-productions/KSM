@@ -9,7 +9,7 @@ Kastiusz System Manager, or **KSM**, is a terminal toolkit for Linux system mana
 ## Features
 
 - `ksm` wrapper for the main tools
-- `kcontrol` FTXUI based YaST-style KSM control center
+- `kcontrol` FTXUI based YaST-style KSM control center with native panels for KSM functions
 - `khome` built-in help pages
 - `kupgr` interactive updater from GitHub Releases
 - `kuninstall` interactive uninstaller
@@ -27,6 +27,8 @@ Kastiusz System Manager, or **KSM**, is a terminal toolkit for Linux system mana
 - `knetcfg` interactive network interface configuration
 - ANSI + termios tools, with `FTXUI` used for the main control center
 - C++20 build through `src/build.sh`
+
+When a tool is opened from `kcontrol`, the workflow stays inside the FTXUI control center: lists, settings, confirmations, and actions use the same panel style instead of jumping into the older standalone ANSI screens.
 
 ## Install With Curl
 
@@ -75,6 +77,8 @@ khome
 kcontrol
 khome -ui
 kupgr
+kupgr --yes
+kupgr -ex --repo-snapshot
 kuninstall
 ksysinfo
 kserv

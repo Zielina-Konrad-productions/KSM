@@ -58,6 +58,7 @@ struct Options {
     bool experimental = false;
     bool repoSnapshot = false;
     bool force = false;
+    bool assumeYes = false;
     bool buildProject = true;
     bool linkCommands = true;
     std::string localVersion;
@@ -198,6 +199,8 @@ void help() {
     std::cout << BLUE << "Options:" << RESET << '\n';
     std::cout << "  --experimental, -ex  Use latest prerelease\n";
     std::cout << "  --force, -f          Start with force reinstall enabled\n";
+    std::cout << "  --repo-snapshot      Use main branch snapshot in experimental mode\n";
+    std::cout << "  --yes, -y            Start update without interactive panel\n";
     std::cout << "  --help, -h           Show this help\n";
     std::cout << "  --version, -v        Show version information\n\n";
     std::cout << BLUE << "Controls:" << RESET << '\n';
@@ -1267,6 +1270,41 @@ void refresh_versions(Options& options) {
     }
 }
 
+int run_once(Options options) {
+    if (geteuid() != 0) {
+        banner();
+        std::cerr << RED << "Run with sudo!" << RESET << '\n';
+        return 1;
+    }
+
+    options.localVersion = read_local_version();
+    if (!validate_before_update(options)) {
+        if (!options.message.empty()) {
+            const bool newest = is_newest_version_message(options.message);
+            std::cout << (newest ? GREEN : YELLOW) << (newest ? "[+]" : "[!]") << RESET
+                      << " " << options.message << '\n';
+            return newest ? 0 : 1;
+        }
+        return 1;
+    }
+
+    const UpdateResult result = run_update(options);
+    if (result == UpdateResult::Updated) {
+        std::cout << GREEN << "[+]" << RESET << " KSM updated successfully.\n";
+        std::cout << YELLOW << "[RAPORT]" << RESET << " " << kLogPath << '\n';
+        return 0;
+    }
+    if (result == UpdateResult::UpToDate) {
+        std::cout << GREEN << "[+]" << RESET << " " << newest_version_message(options.remoteVersion) << '\n';
+        std::cout << YELLOW << "[RAPORT]" << RESET << " " << kLogPath << '\n';
+        return 0;
+    }
+
+    std::cout << RED << "[x]" << RESET << " KSM update failed.\n";
+    std::cout << YELLOW << "[RAPORT]" << RESET << " " << kLogPath << '\n';
+    return 1;
+}
+
 int run_tui(Options options) {
     if (geteuid() != 0) {
         banner();
@@ -1353,8 +1391,17 @@ int main(int argc, char* argv[]) {
             options.force = true;
             continue;
         }
+        if (arg == "--yes" || arg == "-y") {
+            options.assumeYes = true;
+            continue;
+        }
         if (arg == "--experimental" || arg == "-ex") {
             options.experimental = true;
+            continue;
+        }
+        if (arg == "--repo-snapshot" || arg == "--repo") {
+            options.experimental = true;
+            options.repoSnapshot = true;
             continue;
         }
         if (arg == "--panel") continue;
@@ -1362,6 +1409,10 @@ int main(int argc, char* argv[]) {
         std::cerr << RED << "unknown option:" << RESET << " " << arg << '\n';
         std::cerr << "run 'kupgr --help' to list options.\n";
         return 1;
+    }
+
+    if (options.assumeYes) {
+        return run_once(options);
     }
 
     return run_tui(options);
