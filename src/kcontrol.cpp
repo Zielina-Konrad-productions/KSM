@@ -418,6 +418,29 @@ CommandResult run_command(std::vector<std::string> args, bool asRoot = false, co
     return {1, output};
 }
 
+int run_command_interactive(std::vector<std::string> args, bool asRoot = false) {
+    if (asRoot && geteuid() != 0) {
+        args.insert(args.begin(), "sudo");
+    }
+
+    const pid_t pid = fork();
+    if (pid < 0) return 1;
+
+    if (pid == 0) {
+        std::vector<char*> argv;
+        for (auto& arg : args) argv.push_back(const_cast<char*>(arg.c_str()));
+        argv.push_back(nullptr);
+        execvp(argv[0], argv.data());
+        _exit(127);
+    }
+
+    int status = 0;
+    if (waitpid(pid, &status, 0) < 0) return 1;
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
+    return 1;
+}
+
 bool update_output_completed(const std::string& output) {
     const std::string value = lower(output);
     return value.find("update completed") != std::string::npos ||
@@ -1266,7 +1289,7 @@ NativePanel make_native_panel(const Module& module) {
             panel.list = binaries;
             if (panel.list.empty()) {
                 panel.list = {
-                    {"terminal", "Mini terminal", "No ZPM binaries found in /opt/ZPM yet.", false, false, {}}
+                    {"empty", "No binaries", "No ZPM binaries found in /opt/ZPM yet.", false, false, {}}
                 };
             }
             panel.message = binaries.empty() ? "No ZPM binaries found." : "ZPM binaries loaded.";
@@ -1278,7 +1301,8 @@ NativePanel make_native_panel(const Module& module) {
         };
         panel.detailLines = {
             "Choose a compiled ZPM binary from the list.",
-            "KSM runs it through bash and shows output in the mini terminal."
+            "Press Enter on a binary to run it in the normal terminal.",
+            "Arguments are appended when the binary is launched."
         };
         break;
     case ModuleKind::Uninstall:
@@ -1608,7 +1632,7 @@ void toggle_current_list_item(NativePanel& panel) {
 
     panel.selectedKey = item.key;
     if (panel.kind == ModuleKind::ZpmExtension) {
-        panel.message = item.key == "terminal" ? "No ZPM binary selected." : "Selected ZPM binary: " + item.label + ".";
+        panel.message = item.key == "empty" ? "No ZPM binary selected." : "Selected ZPM binary: " + item.label + ".";
         return;
     }
     panel.message = "Selected " + item.label + ".";
@@ -1713,7 +1737,7 @@ void handle_local_action(NativePanel& panel, const std::string& id) {
         panel.selectedKey.clear();
         if (panel.list.empty()) {
             panel.list = {
-                {"terminal", "Mini terminal", "No ZPM binaries found in /opt/ZPM yet.", false, false, {}}
+                {"empty", "No binaries", "No ZPM binaries found in /opt/ZPM yet.", false, false, {}}
             };
             panel.message = "No ZPM binaries found.";
         } else {
@@ -2245,7 +2269,7 @@ void execute_zpm_binary(NativePanel& panel) {
 
     std::string binary = panel.selectedKey;
     if (binary.empty() && !panel.list.empty()) binary = panel.list[panel.listIndex].key;
-    if (binary.empty() || binary == "terminal") {
+    if (binary.empty() || binary == "empty") {
         panel.message = "Select a ZPM binary first.";
         return;
     }
@@ -2258,11 +2282,18 @@ void execute_zpm_binary(NativePanel& panel) {
 
     const std::string arguments = trim(row_value(panel, "args"));
     const std::string command = shell_quote(binary) + (arguments.empty() ? "" : " " + arguments);
-    const CommandResult result = run_command({"bash", "-lc", command}, true);
-    set_terminal_output(panel, fs::path(binary).filename().string() + (arguments.empty() ? "" : " " + arguments), result.output);
-    panel.message = result.code == 0
+    std::cout << "\033[0m\033[2J\033[H";
+    std::cout << CYAN << "[KSM]" << RESET << " Running ZPM binary: "
+              << fs::path(binary).filename().string() << "\n\n";
+    const int code = run_command_interactive({"bash", "-lc", command}, true);
+    std::cout << "\n" << CYAN << "[KSM]" << RESET << " Process exited with code " << code << ".\n";
+    std::cout << "Press Enter to return to KSM..." << std::flush;
+    std::string ignored;
+    std::getline(std::cin, ignored);
+
+    panel.message = code == 0
         ? "ZPM binary completed."
-        : "ZPM binary failed with code " + std::to_string(result.code) + ".";
+        : "ZPM binary failed with code " + std::to_string(code) + ".";
 }
 
 void execute_upgrade(NativePanel& panel) {
@@ -2654,8 +2685,21 @@ int run_tui() {
             }
             if (event == Event::Return) {
                 if (panel.focus == PanelFocus::List && !panel.list.empty()) {
-                    if (panel.kind == ModuleKind::Permissions) handle_directory_select(panel);
-                    else toggle_current_list_item(panel);
+                    if (panel.kind == ModuleKind::Permissions) {
+                        handle_directory_select(panel);
+                    } else if (panel.kind == ModuleKind::ZpmExtension) {
+                        const ListItem& item = panel.list[panel.listIndex];
+                        if (item.key == "empty") {
+                            panel.message = "No ZPM binary to run.";
+                        } else {
+                            panel.selectedKey = item.key;
+                            pending = true;
+                            pendingAction = "run_zpm_binary";
+                            exitLoop();
+                        }
+                    } else {
+                        toggle_current_list_item(panel);
+                    }
                     return true;
                 }
                 handle_row_enter(panel, edit, picker, pending, pendingAction);
