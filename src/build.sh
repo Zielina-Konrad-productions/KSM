@@ -40,22 +40,26 @@ printf "%b---------------------------Building KSM---------------------------%b\n
 
 build_one() {
     file="$1"
-    name="${file%.cpp}"
+    out_name="$2"
+    out="$3"
 
-    case "$name" in
-        KSM) out_name="ksm" ;;
-        *) out_name="$name" ;;
-    esac
-
-    out="/tmp/${out_name}.$$"
     info "Compiling $file -> $out_name"
     "$CXX_CMD" "$file" -std=c++20 -O2 -I "$SRC_DIR/common" -o "$out"
+    ok "Built $out_name"
+}
+
+install_one() {
+    out="$1"
+    out_name="$2"
+
     mv -f "$out" "$BIN_DIR/$out_name"
     chmod +x "$BIN_DIR/$out_name"
     ok "Installed $out_name"
 }
 
 pids=""
+outputs=""
+names=""
 
 for file in *.cpp; do
     [ -e "$file" ] || continue
@@ -66,8 +70,16 @@ for file in *.cpp; do
         continue
     fi
 
-    build_one "$file" &
+    case "$name" in
+        KSM) out_name="ksm" ;;
+        *) out_name="$name" ;;
+    esac
+
+    out="/tmp/${out_name}.$$"
+    build_one "$file" "$out_name" "$out" &
     pids="$pids $!"
+    outputs="$outputs $out"
+    names="$names $out_name"
 done
 
 failed=0
@@ -79,6 +91,27 @@ done
 
 if [ "$failed" -ne 0 ]; then
     fail "One or more programs failed to build."
+    exit 1
+fi
+
+pids=""
+set -- $outputs
+for out_name in $names; do
+    out="$1"
+    shift
+    install_one "$out" "$out_name" &
+    pids="$pids $!"
+done
+
+failed=0
+for pid in $pids; do
+    if ! wait "$pid"; then
+        failed=1
+    fi
+done
+
+if [ "$failed" -ne 0 ]; then
+    fail "One or more programs failed to install."
     exit 1
 fi
 
