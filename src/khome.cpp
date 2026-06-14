@@ -169,6 +169,8 @@ void page2() {
     std::cout << BOLD << "PAGE 2" << RESET << " (KSM tools and wrapper alternatives)\n\n";
 
     std::cout << BOLD << BLUE << "Main tools:" << RESET << '\n';
+    std::cout << "  " << CYAN << "kcontrol" << RESET << "   - KSM control center"
+              << DIM << " | alt: ksm control" << RESET << '\n';
     std::cout << "  " << CYAN << "khome" << RESET << "       - Home/help browser"
               << DIM << " | alt: ksm home" << RESET << '\n';
     std::cout << "  " << CYAN << "kupgr" << RESET << "       - GitHub Releases updater"

@@ -16,6 +16,7 @@ void show_version() {
 void show_help() {
     std::cout << BLUE << "Usage: " << RESET << CYAN << "ksm" << RESET << " <command> [options]\n";
     std::cout << BLUE << "Commands:" << RESET << '\n';
+    std::cout << "  " << CYAN << "control" << RESET << "    KSM control center\n";
     std::cout << "  " << CYAN << "home" << RESET << "       Full KSM home pages\n";
     std::cout << "  " << CYAN << "upgrade" << RESET << "    Update KSM\n";
     std::cout << "  " << CYAN << "uninstall" << RESET << "  Uninstall KSM\n";
@@ -112,6 +113,10 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "home" || cmd == "help") {
             return run_installed_tool("khome", forwarded);
+        }
+
+        if (cmd == "control" || cmd == "menu" || cmd == "yast") {
+            return run_installed_tool("kcontrol", forwarded);
         }
 
         if (cmd == "useradd") {

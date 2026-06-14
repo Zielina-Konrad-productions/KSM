@@ -167,7 +167,7 @@ void draw(const Options& options, int cursor) {
     draw_row(4, cursor, "Start installation    Enter", true);
     draw_row(5, cursor, "Cancel                Enter or q");
 
-    std::cout << "\nCommands after install: ksm, khome, kupgr, kuninstall, ksysinfo, kserv, kperm, kssh, kfirewall, kgroupadd, kgroupmod, kgroupdel, kuseradd, kusermod, kuserdel, knetcfg\n";
+    std::cout << "\nCommands after install: ksm, kcontrol, khome, kupgr, kuninstall, ksysinfo, kserv, kperm, kssh, kfirewall, kgroupadd, kgroupmod, kgroupdel, kuseradd, kusermod, kuserdel, knetcfg\n";
     if (!options.message.empty()) std::cout << '\n' << YELLOW << options.message << RESET << '\n';
     std::cout << std::flush;
 }
@@ -204,9 +204,27 @@ std::string detect_package_manager() {
 }
 
 std::vector<std::string> dependencies_for(const std::string& pm) {
-    if (pm == "apt") return {"g++", "sudo", "coreutils", "nano", "passwd", "systemd"};
-    if (pm == "zypper") return {"gcc-c++", "sudo", "coreutils", "nano", "shadow", "systemd"};
-    if (pm == "dnf") return {"gcc-c++", "sudo", "coreutils", "nano", "shadow-utils", "systemd"};
+    if (pm == "apt") {
+        return {
+            "g++", "sudo", "coreutils", "nano", "passwd",
+            "systemd", "systemd-resolved", "iproute2", "procps", "util-linux",
+            "openssh-server", "ufw"
+        };
+    }
+    if (pm == "zypper") {
+        return {
+            "gcc-c++", "sudo", "coreutils", "nano", "shadow",
+            "systemd", "iproute2", "procps", "util-linux",
+            "openssh", "firewalld"
+        };
+    }
+    if (pm == "dnf") {
+        return {
+            "gcc-c++", "sudo", "coreutils", "nano", "shadow-utils",
+            "systemd", "iproute", "procps-ng", "util-linux",
+            "openssh-server", "firewalld"
+        };
+    }
     return {};
 }
 
@@ -351,6 +369,7 @@ int run_installation(Terminal& terminal, const Options& options) {
     if (ok) {
         std::cout << GREEN << "[+]" << RESET << " Installation complete.\n";
         std::cout << "Run: " << CYAN << "ksm" << RESET << ", " << CYAN << "khome" << RESET
+                  << ", " << CYAN << "kcontrol" << RESET
                   << ", " << CYAN << "ksm upgrade" << RESET << ", "
                   << CYAN << "ksm sysinfo" << RESET << ", "
                   << CYAN << "ksm serv" << RESET << ", "

@@ -9,6 +9,7 @@ Kastiusz System Manager, or **KSM**, is a terminal toolkit for Linux system mana
 ## Features
 
 - `ksm` wrapper for the main tools
+- `kcontrol` YaST-style KSM control center
 - `khome` built-in help pages
 - `kupgr` interactive updater from GitHub Releases
 - `kuninstall` interactive uninstaller
@@ -45,6 +46,14 @@ sudo bash ./INSTALL.sh
 
 The installer builds a temporary C++ panel, installs KSM to `/opt/KSM`, builds binaries into `/opt/KSM/bin`, and links commands into `/usr/bin`.
 
+## Dependencies
+
+The installer can install the needed packages automatically:
+
+- Debian/Ubuntu: `g++ sudo coreutils nano passwd systemd systemd-resolved iproute2 procps util-linux openssh-server ufw`
+- openSUSE: `gcc-c++ sudo coreutils nano shadow systemd iproute2 procps util-linux openssh firewalld`
+- Fedora/RHEL: `gcc-c++ sudo coreutils nano shadow-utils systemd iproute procps-ng util-linux openssh-server firewalld`
+
 ## Uninstall
 
 ```bash
@@ -63,6 +72,7 @@ The uninstaller removes `/opt/KSM` and only removes `/usr/bin` command links tha
 
 ```bash
 khome
+kcontrol
 khome -ui
 kupgr
 kuninstall
@@ -84,6 +94,8 @@ KSM wrapper alternatives:
 
 ```bash
 ksm
+ksm control
+ksm menu
 ksm home
 ksm home -ui
 ksm upgrade
@@ -130,6 +142,7 @@ kastiusz.conf
 src/
   build.sh
   KSM.cpp
+  kcontrol.cpp
   khome.cpp
   kupgr.cpp
   kuninstall.cpp
