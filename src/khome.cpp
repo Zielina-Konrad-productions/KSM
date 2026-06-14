@@ -56,21 +56,28 @@ void page1() {
     std::cout << "  Install path: " << CYAN << "/opt/KSM" << RESET << '\n';
     std::cout << "  Config file: " << CYAN << "/opt/KSM/kastiusz.conf" << RESET << "\n\n";
 
-    std::cout << BOLD << BLUE << "Programs:" << RESET << '\n';
-    std::cout << "  " << CYAN << "khome" << RESET << "       - This help page\n";
-    std::cout << "  " << CYAN << "kupgr" << RESET << "       - Interactive KSM updater\n";
-    std::cout << "  " << CYAN << "kuninstall" << RESET << " - Interactive KSM uninstaller\n";
-    std::cout << "  " << CYAN << "kgroupadd" << RESET << "   - Interactive group creator\n";
-    std::cout << "  " << CYAN << "kgroupdel" << RESET << "   - Interactive group remover\n";
-    std::cout << "  " << CYAN << "kuseradd" << RESET << "    - Interactive user creator\n";
-    std::cout << "  " << CYAN << "kuserdel" << RESET << "    - Interactive user remover\n";
-    std::cout << "  " << CYAN << "ksm upgrade" << RESET << " - Run kupgr through the wrapper\n";
-    std::cout << "  " << CYAN << "ksm uninstall" << RESET << " - Run kuninstall through the wrapper\n";
-    std::cout << "  " << CYAN << "kupgr -ex" << RESET << "   - Use latest experimental prerelease\n";
-    std::cout << "  " << CYAN << "ksm groupadd" << RESET << " - Run kgroupadd through the wrapper\n";
-    std::cout << "  " << CYAN << "ksm groupdel" << RESET << " - Run kgroupdel through the wrapper\n";
-    std::cout << "  " << CYAN << "ksm useradd" << RESET << " - Run kuseradd through the wrapper\n";
-    std::cout << "  " << CYAN << "ksm userdel" << RESET << " - Run kuserdel through the wrapper\n\n";
+    std::cout << BOLD << BLUE << "KSM commands:" << RESET << '\n';
+    std::cout << "  " << CYAN << "ksm home" << RESET << "      - Show this home/help page\n";
+    std::cout << "  " << CYAN << "ksm upgrade" << RESET << "   - Interactive updater\n";
+    std::cout << "  " << CYAN << "ksm uninstall" << RESET << " - Interactive uninstaller\n";
+    std::cout << "  " << CYAN << "ksm groupadd" << RESET << "  - Interactive group creator\n";
+    std::cout << "  " << CYAN << "ksm groupdel" << RESET << "  - Interactive group remover\n";
+    std::cout << "  " << CYAN << "ksm useradd" << RESET << "   - Interactive user creator\n";
+    std::cout << "  " << CYAN << "ksm userdel" << RESET << "   - Interactive user remover\n\n";
+
+    std::cout << BOLD << BLUE << "Direct tools:" << RESET << '\n';
+    std::cout << "  " << CYAN << "khome" << RESET << "       - Home/help browser\n";
+    std::cout << "  " << CYAN << "kupgr" << RESET << "       - GitHub Releases updater\n";
+    std::cout << "  " << CYAN << "kuninstall" << RESET << " - Uninstaller\n";
+    std::cout << "  " << CYAN << "kgroupadd" << RESET << "   - Group creator\n";
+    std::cout << "  " << CYAN << "kgroupdel" << RESET << "   - Group remover\n";
+    std::cout << "  " << CYAN << "kuseradd" << RESET << "    - User creator\n";
+    std::cout << "  " << CYAN << "kuserdel" << RESET << "    - User remover\n\n";
+
+    std::cout << BOLD << BLUE << "Examples:" << RESET << '\n';
+    std::cout << "  " << CYAN << "ksm home -p1" << RESET << "  - Show page 1\n";
+    std::cout << "  " << CYAN << "ksm home --all" << RESET << " - Show all pages\n";
+    std::cout << "  " << CYAN << "kupgr -ex" << RESET << "     - Use latest experimental prerelease\n\n";
 
     std::cout << BOLD << BLUE << "khome configuration:" << RESET << '\n';
     std::cout << "  " << CYAN << "khome-default-page-1=true" << RESET << '\n';

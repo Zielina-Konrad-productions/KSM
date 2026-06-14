@@ -22,6 +22,8 @@ constexpr const char* kBinDir = "/usr/bin";
 constexpr const char* kLogPath = "/tmp/kupgr.log";
 constexpr const char* kReleasesApiUrl =
     "https://api.github.com/repos/Zielina-Konrad-productions/KSM/releases";
+constexpr const char* kRepoArchiveUrl =
+    "https://github.com/Zielina-Konrad-productions/KSM/archive/refs/heads/main.tar.gz";
 
 enum class Key {
     Up,
@@ -54,6 +56,7 @@ struct Options {
     bool installMissingTools = false;
     bool preserveConfig = true;
     bool experimental = false;
+    bool repoSnapshot = false;
     bool force = false;
     bool buildProject = true;
     bool linkCommands = true;
@@ -202,6 +205,8 @@ void help() {
     std::cout << "  Tab             Jump to Start/Top\n";
     std::cout << "  Enter           Toggle option, refresh, or run action\n";
     std::cout << "  q               Cancel\n";
+    std::cout << '\n' << BLUE << "Experimental:" << RESET << '\n';
+    std::cout << "  Repo snapshot appears in experimental mode and installs main as VERSION.txt + -snap.\n";
 }
 
 std::string trim(const std::string& value) {
@@ -224,6 +229,18 @@ std::string lower_text(std::string value) {
         return static_cast<char>(std::tolower(ch));
     });
     return value;
+}
+
+std::string snapshot_version(std::string value) {
+    value = normalize_version(value);
+    if (value.empty()) {
+        return "";
+    }
+    const std::string lower = lower_text(value);
+    if (lower.size() >= 5 && lower.substr(lower.size() - 5) == "-snap") {
+        return value;
+    }
+    return value + "-snap";
 }
 
 bool is_prerelease_version(const std::string& version) {
@@ -633,8 +650,41 @@ std::string channel_label(bool experimental) {
     return experimental ? "experimental prerelease" : "release";
 }
 
+std::string source_label(const Options& options) {
+    return options.repoSnapshot ? "GitHub repo main branch" : "GitHub Releases";
+}
+
 std::string release_tag_label(const ReleaseInfo& release) {
     return release.tag.empty() ? DIM + "(none)" + RESET : release.tag;
+}
+
+std::string newest_version_message(const std::string& version) {
+    std::string message = "Already on newest version";
+    if (!version.empty()) {
+        message += " (v" + version + ")";
+    }
+    message += ". Nothing to do.";
+    return message;
+}
+
+bool is_newest_version_message(const std::string& message) {
+    return message.rfind("Already on newest version", 0) == 0;
+}
+
+int tools_row(const Options& options) {
+    return options.experimental ? 3 : 2;
+}
+
+int start_row(const Options& options) {
+    return options.experimental ? 8 : 7;
+}
+
+int cancel_row(const Options& options) {
+    return options.experimental ? 9 : 8;
+}
+
+int max_row(const Options& options) {
+    return cancel_row(options);
 }
 
 void draw_row(int row, int cursor, const std::string& text, bool action = false, bool danger = false) {
@@ -659,7 +709,7 @@ void draw(const Options& options, int cursor) {
 
     std::cout << BOLD << "Update source" << RESET << '\n';
     std::cout << "  Repo  : Zielina-Konrad-productions/KSM\n";
-    std::cout << "  Source: GitHub Releases\n";
+    std::cout << "  Source: " << source_label(options) << '\n';
     std::cout << "  Channel: " << channel_label(options.experimental) << '\n';
     std::cout << "  Tag   : " << release_tag_label(options.remoteRelease) << '\n';
     std::cout << "  Local : " << version_label(options.localVersion) << '\n';
@@ -667,13 +717,17 @@ void draw(const Options& options, int cursor) {
 
     draw_row(0, cursor, "Refresh version info  Enter");
     draw_row(1, cursor, "Experimental release  " + yes_no(options.experimental));
-    draw_row(2, cursor, "Install missing tools " + yes_no(options.installMissingTools));
-    draw_row(3, cursor, "Preserve config       " + yes_no(options.preserveConfig));
-    draw_row(4, cursor, "Force reinstall       " + yes_no(options.force));
-    draw_row(5, cursor, "Build C++ programs    " + yes_no(options.buildProject));
-    draw_row(6, cursor, "Link commands         " + yes_no(options.linkCommands));
-    draw_row(7, cursor, "Start update          Enter", true);
-    draw_row(8, cursor, "Cancel                Enter or q");
+    const int offset = options.experimental ? 1 : 0;
+    if (options.experimental) {
+        draw_row(2, cursor, "Repo snapshot         " + yes_no(options.repoSnapshot));
+    }
+    draw_row(2 + offset, cursor, "Install missing tools " + yes_no(options.installMissingTools));
+    draw_row(3 + offset, cursor, "Preserve config       " + yes_no(options.preserveConfig));
+    draw_row(4 + offset, cursor, "Force reinstall       " + yes_no(options.force));
+    draw_row(5 + offset, cursor, "Build C++ programs    " + yes_no(options.buildProject));
+    draw_row(6 + offset, cursor, "Link commands         " + yes_no(options.linkCommands));
+    draw_row(start_row(options), cursor, "Start update          Enter", true);
+    draw_row(cancel_row(options), cursor, "Cancel                Enter or q");
 
     if (!options.message.empty()) {
         std::cout << '\n' << YELLOW << options.message << RESET << '\n';
@@ -681,8 +735,7 @@ void draw(const Options& options, int cursor) {
     std::cout << std::flush;
 }
 
-void move_cursor(int& cursor, int delta) {
-    constexpr int maxRow = 8;
+void move_cursor(int& cursor, int delta, int maxRow) {
     cursor += delta;
     if (cursor < 0) cursor = maxRow;
     if (cursor > maxRow) cursor = 0;
@@ -760,6 +813,7 @@ bool confirm_update(const Options& options) {
     clear_screen();
     banner();
     std::cout << YELLOW << "Ready to update KSM" << RESET << "\n\n";
+    std::cout << "Source              : " << source_label(options) << '\n';
     std::cout << "Channel             : " << channel_label(options.experimental) << '\n';
     std::cout << "Release tag         : " << release_tag_label(options.remoteRelease) << '\n';
     std::cout << "Local version       : " << version_label(options.localVersion) << '\n';
@@ -787,6 +841,17 @@ bool download_archive(const ReleaseInfo& release, const fs::path& archivePath) {
     }
     if (tool == "wget") {
         return run_process({"wget", "-O", archivePath.string(), release.archiveUrl}).exitCode == 0;
+    }
+    return false;
+}
+
+bool download_repo_snapshot(const fs::path& archivePath) {
+    const std::string tool = downloader();
+    if (tool == "curl") {
+        return run_process({"curl", "-fL", "--retry", "2", "-o", archivePath.string(), kRepoArchiveUrl}).exitCode == 0;
+    }
+    if (tool == "wget") {
+        return run_process({"wget", "-O", archivePath.string(), kRepoArchiveUrl}).exitCode == 0;
     }
     return false;
 }
@@ -968,6 +1033,7 @@ bool commit_install(const fs::path& newInstallDir, bool doLinkCommands, const Re
 UpdateResult run_update(const Options& options) {
     log_line("---starting KSM update---", true);
     log_line("channel: " + channel_label(options.experimental));
+    log_line("source: " + source_label(options));
     log_line("local: " + (options.localVersion.empty() ? "unknown" : options.localVersion));
 
     auto temp = TempDirectory::create();
@@ -992,7 +1058,11 @@ UpdateResult run_update(const Options& options) {
         }
     }
 
-    if (!release.valid()) {
+    if (options.repoSnapshot) {
+        release.tag = "main";
+        release.archiveUrl = kRepoArchiveUrl;
+        release.experimental = true;
+    } else if (!release.valid()) {
         std::cout << CYAN << "[*]" << RESET << " Fetching GitHub release metadata...\n";
         const auto fetched = fetch_remote_release(options.experimental);
         if (!fetched) {
@@ -1005,7 +1075,7 @@ UpdateResult run_update(const Options& options) {
     }
 
     log_line("release tag: " + release.tag);
-    log_line("remote: " + release.version);
+    if (!release.version.empty()) log_line("remote: " + release.version);
 
     const bool stableOverPrerelease = !options.experimental && is_prerelease_version(options.localVersion);
     if (stableOverPrerelease) {
@@ -1015,15 +1085,18 @@ UpdateResult run_update(const Options& options) {
     }
 
     if (!options.force && !options.localVersion.empty() &&
+        !options.repoSnapshot &&
         !stableOverPrerelease &&
         compare_versions(options.localVersion, release.version) >= 0) {
-        std::cout << GREEN << "[+]" << RESET << " KSM is up to date.\n";
+        std::cout << GREEN << "[+]" << RESET << " " << newest_version_message(release.version) << '\n';
         log_line("update: already up to date");
         return UpdateResult::UpToDate;
     }
 
-    std::cout << CYAN << "[*]" << RESET << " Downloading KSM release archive...\n";
-    if (!download_archive(release, archivePath)) {
+    std::cout << CYAN << "[*]" << RESET << " Downloading KSM "
+              << (options.repoSnapshot ? "repo snapshot" : "release archive") << "...\n";
+    const bool downloaded = options.repoSnapshot ? download_repo_snapshot(archivePath) : download_archive(release, archivePath);
+    if (!downloaded) {
         log_line("download: failed");
         return UpdateResult::Failed;
     }
@@ -1033,6 +1106,15 @@ UpdateResult run_update(const Options& options) {
     if (!sourceDir || !valid_source_tree(*sourceDir)) {
         log_line("extract: source tree is invalid");
         return UpdateResult::Failed;
+    }
+
+    if (options.repoSnapshot) {
+        release.version = snapshot_version(read_first_line(*sourceDir / "VERSION.txt"));
+        if (release.version.empty()) {
+            log_line("version: repo snapshot VERSION.txt is empty");
+            return UpdateResult::Failed;
+        }
+        log_line("remote: " + release.version);
     }
 
     if (options.preserveConfig) {
@@ -1078,6 +1160,20 @@ UpdateResult run_update(const Options& options) {
 
 bool validate_before_update(Options& options) {
     options.localVersion = read_local_version();
+    if (!options.experimental) {
+        options.repoSnapshot = false;
+    }
+
+    if (options.repoSnapshot) {
+        options.remoteRelease = {};
+        options.remoteRelease.tag = "main";
+        options.remoteRelease.archiveUrl = kRepoArchiveUrl;
+        options.remoteRelease.experimental = true;
+        options.remoteVersion.clear();
+        options.message.clear();
+        return true;
+    }
+
     if (!options.remoteRelease.valid()) {
         if (downloader().empty() && options.installMissingTools) {
             options.message.clear();
@@ -1099,7 +1195,7 @@ bool validate_before_update(Options& options) {
     if (!options.force && !options.localVersion.empty() &&
         !installing_stable_over_prerelease(options) &&
         compare_versions(options.localVersion, options.remoteVersion) >= 0) {
-        options.message = "KSM is up to date.";
+        options.message = newest_version_message(options.remoteVersion);
         return false;
     }
 
@@ -1120,13 +1216,13 @@ int run_update_screen(Terminal& terminal, const Options& options) {
     std::cout << '\n';
     if (result == UpdateResult::Updated) {
         std::cout << GREEN << "[+]" << RESET << " KSM updated successfully.\n";
-        std::cout << "Run: " << CYAN << "ksm" << RESET << " or " << CYAN << "ksm help" << RESET << '\n';
+        std::cout << "Run: " << CYAN << "ksm" << RESET << " or " << CYAN << "ksm home" << RESET << '\n';
         std::cout << YELLOW << "[RAPORT]" << RESET << " " << kLogPath << '\n';
         return 0;
     }
 
     if (result == UpdateResult::UpToDate) {
-        std::cout << GREEN << "[+]" << RESET << " KSM is up to date.\n";
+        std::cout << GREEN << "[+]" << RESET << " " << newest_version_message(options.remoteVersion) << '\n';
         std::cout << YELLOW << "[RAPORT]" << RESET << " " << kLogPath << '\n';
         return 0;
     }
@@ -1140,6 +1236,17 @@ void refresh_versions(Options& options) {
     options.localVersion = read_local_version();
     options.remoteRelease = {};
     options.remoteVersion.clear();
+    if (!options.experimental) {
+        options.repoSnapshot = false;
+    }
+
+    if (options.repoSnapshot) {
+        options.remoteRelease.tag = "main";
+        options.remoteRelease.archiveUrl = kRepoArchiveUrl;
+        options.remoteRelease.experimental = true;
+        options.message = "Repo snapshot selected. VERSION.txt will be read after download.";
+        return;
+    }
 
     const auto fetched = fetch_remote_release(options.experimental);
     if (!fetched) {
@@ -1154,7 +1261,7 @@ void refresh_versions(Options& options) {
         options.message = "Warning: installed version looks experimental/pre; stable release is available.";
     } else if (!options.force && !options.localVersion.empty() &&
         compare_versions(options.localVersion, options.remoteVersion) >= 0) {
-        options.message = "KSM is up to date.";
+        options.message = newest_version_message(options.remoteVersion);
     } else {
         options.message = "Version info refreshed.";
     }
@@ -1181,36 +1288,46 @@ int run_tui(Options options) {
             return 0;
         }
         if (key.key == Key::Up) {
-            move_cursor(cursor, -1);
+            move_cursor(cursor, -1, max_row(options));
         } else if (key.key == Key::Down) {
-            move_cursor(cursor, 1);
+            move_cursor(cursor, 1, max_row(options));
         } else if (key.key == Key::Tab) {
-            cursor = cursor < 7 ? 7 : 0;
+            cursor = cursor < start_row(options) ? start_row(options) : 0;
         } else if (key.key == Key::Enter) {
             options.message.clear();
+            const int currentToolsRow = tools_row(options);
+            const int currentStartRow = start_row(options);
+            const int currentCancelRow = cancel_row(options);
             if (cursor == 0) {
                 refresh_versions(options);
             } else if (cursor == 1) {
                 options.experimental = !options.experimental;
+                if (!options.experimental) {
+                    options.repoSnapshot = false;
+                    if (cursor > max_row(options)) cursor = max_row(options);
+                }
                 refresh_versions(options);
-            } else if (cursor == 2) {
+            } else if (options.experimental && cursor == 2) {
+                options.repoSnapshot = !options.repoSnapshot;
+                refresh_versions(options);
+            } else if (cursor == currentToolsRow) {
                 options.installMissingTools = !options.installMissingTools;
-            } else if (cursor == 3) {
+            } else if (cursor == currentToolsRow + 1) {
                 options.preserveConfig = !options.preserveConfig;
-            } else if (cursor == 4) {
+            } else if (cursor == currentToolsRow + 2) {
                 options.force = !options.force;
-                if (options.force && options.message == "KSM is up to date.") {
+                if (options.force && is_newest_version_message(options.message)) {
                     options.message.clear();
                 }
-            } else if (cursor == 5) {
+            } else if (cursor == currentToolsRow + 3) {
                 options.buildProject = !options.buildProject;
-            } else if (cursor == 6) {
+            } else if (cursor == currentToolsRow + 4) {
                 options.linkCommands = !options.linkCommands;
-            } else if (cursor == 7) {
+            } else if (cursor == currentStartRow) {
                 if (validate_before_update(options) && confirm_update(options)) {
                     return run_update_screen(terminal, options);
                 }
-            } else if (cursor == 8) {
+            } else if (cursor == currentCancelRow) {
                 return 0;
             }
         }

@@ -55,7 +55,7 @@ The uninstaller removes `/opt/KSM` and only removes `/usr/bin` command links tha
 
 ```bash
 ksm
-ksm help
+ksm home
 ksm upgrade
 ksm upgrade -ex
 ksm uninstall
