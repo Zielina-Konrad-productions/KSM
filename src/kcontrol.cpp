@@ -1028,6 +1028,8 @@ NativePanel make_native_panel(const Module& module) {
             {RowType::Bool, "remove_home", "Remove home directory", "", {}, true, false},
             {RowType::Bool, "force", "Force delete", "", {}, false, false},
             {RowType::Bool, "show_system", "Show system users", "", {}, false, false},
+            {RowType::Text, "name", "Select by name", ""},
+            {RowType::Action, "select_name", "Select name matches", "", {}, false, false},
             {RowType::Action, "refresh_users", "Reload users", "", {}, false, false},
             {RowType::Action, "delete_users", "Delete selected", "", {}, false, true}
         };
@@ -1071,6 +1073,8 @@ NativePanel make_native_panel(const Module& module) {
         panel.rows = {
             {RowType::Bool, "force", "Force delete", "", {}, false, false},
             {RowType::Bool, "show_system", "Show system groups", "", {}, false, false},
+            {RowType::Text, "name", "Select by name", ""},
+            {RowType::Action, "select_name", "Select name matches", "", {}, false, false},
             {RowType::Text, "keyword", "Delete with keyword", ""},
             {RowType::Action, "select_keyword", "Select keyword matches", "", {}, false, false},
             {RowType::Action, "refresh_groups", "Reload groups", "", {}, false, false},
@@ -1519,17 +1523,33 @@ void handle_local_action(NativePanel& panel, const std::string& id) {
         return;
     }
     if (id == "select_keyword") {
-        const std::string keyword = row_value(panel, "keyword");
+        const std::string keyword = trim(row_value(panel, "keyword"));
         int count = 0;
         if (!keyword.empty()) {
+            const std::string needle = lower(keyword);
             for (auto& item : panel.list) {
-                if (item.label.find(keyword) != std::string::npos) {
+                if (lower(item.label).find(needle) != std::string::npos) {
                     item.selected = true;
                     ++count;
                 }
             }
         }
         panel.message = count == 0 ? "No keyword matches." : "Selected keyword matches: " + std::to_string(count) + ".";
+        return;
+    }
+    if (id == "select_name") {
+        const std::string name = trim(row_value(panel, "name"));
+        int count = 0;
+        if (!name.empty()) {
+            const std::string needle = lower(name);
+            for (auto& item : panel.list) {
+                if (lower(item.label).find(needle) != std::string::npos) {
+                    item.selected = true;
+                    ++count;
+                }
+            }
+        }
+        panel.message = count == 0 ? "No name matches." : "Selected name matches: " + std::to_string(count) + ".";
         return;
     }
     if (id == "reload_services") {
@@ -1554,7 +1574,7 @@ void handle_local_action(NativePanel& panel, const std::string& id) {
 
 bool is_local_action(const std::string& id) {
     return id == "refresh_sysinfo" || id == "refresh_home" || id == "refresh_users" ||
-           id == "refresh_groups" || id == "select_keyword" || id == "reload_services" ||
+           id == "refresh_groups" || id == "select_keyword" || id == "select_name" || id == "reload_services" ||
            id == "load_perm" || id == "load_network" || id == "load_ssh";
 }
 

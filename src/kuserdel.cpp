@@ -15,6 +15,7 @@ enum class Key {
     Down,
     Tab,
     Enter,
+    Backspace,
     Escape,
     CtrlC,
     Character,
@@ -38,6 +39,7 @@ struct Options {
     bool removeHome = true;
     bool force = false;
     bool showSystemUsers = false;
+    std::string name;
     std::string message;
 };
 
@@ -123,6 +125,7 @@ KeyPress read_key() {
     if (c == 3) return {Key::CtrlC, '\0'};
     if (c == '\t') return {Key::Tab, '\0'};
     if (c == '\n' || c == '\r') return {Key::Enter, '\0'};
+    if (c == 127 || c == 8) return {Key::Backspace, '\0'};
     if (c == 27) {
         char second = '\0';
         char third = '\0';
@@ -204,13 +207,17 @@ void draw(const std::vector<UserEntry>& users, const Options& options, int curso
     const int removeHomeRow = static_cast<int>(users.size());
     const int forceRow = removeHomeRow + 1;
     const int showSystemRow = removeHomeRow + 2;
-    const int deleteRow = removeHomeRow + 3;
-    const int cancelRow = removeHomeRow + 4;
+    const int nameRow = removeHomeRow + 3;
+    const int selectNameRow = removeHomeRow + 4;
+    const int deleteRow = removeHomeRow + 5;
+    const int cancelRow = removeHomeRow + 6;
 
     std::cout << '\n';
     draw_row(removeHomeRow, cursor, "Remove home directory  " + yes_no(options.removeHome));
     draw_row(forceRow, cursor, "Force delete            " + yes_no(options.force));
     draw_row(showSystemRow, cursor, "Show system users      " + yes_no(options.showSystemUsers));
+    draw_row(nameRow, cursor, "Select by name         " + (options.name.empty() ? DIM + "(empty)" + RESET : options.name));
+    draw_row(selectNameRow, cursor, "Select name matches    Enter");
     draw_row(deleteRow, cursor, "Delete selected        Enter", true);
     draw_row(cancelRow, cursor, "Cancel                 Enter or q");
 
@@ -246,6 +253,53 @@ std::vector<UserEntry> selected_users(const std::vector<UserEntry>& users) {
     std::vector<UserEntry> out;
     for (const auto& user : users) if (user.selected) out.push_back(user);
     return out;
+}
+
+std::string trim(const std::string& value) {
+    const auto begin = value.find_first_not_of(" \t\r\n");
+    if (begin == std::string::npos) return "";
+    const auto end = value.find_last_not_of(" \t\r\n");
+    return value.substr(begin, end - begin + 1);
+}
+
+std::string lower_text(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return value;
+}
+
+std::string edit_name(std::string value) {
+    while (true) {
+        clear_screen();
+        banner();
+        std::cout << CYAN << "Editing:" << RESET << " Select by name\n";
+        std::cout << "Users containing this text will be selected. Enter saves, Esc cancels.\n\n";
+        std::cout << BLUE << "Name" << RESET << ": " << value << std::flush;
+
+        const KeyPress key = read_key();
+        if (key.key == Key::Enter) return trim(value);
+        if (key.key == Key::Escape || key.key == Key::CtrlC) return value;
+        if (key.key == Key::Backspace) {
+            if (!value.empty()) value.pop_back();
+        } else if (key.key == Key::Character) {
+            value.push_back(key.value);
+        }
+    }
+}
+
+int select_by_name(std::vector<UserEntry>& users, const std::string& name) {
+    const std::string needle = lower_text(trim(name));
+    if (needle.empty()) return 0;
+
+    int matches = 0;
+    for (auto& user : users) {
+        if (lower_text(user.name).find(needle) != std::string::npos) {
+            user.selected = true;
+            ++matches;
+        }
+    }
+    return matches;
 }
 
 bool confirm_delete(const std::vector<UserEntry>& users, const Options& options) {
@@ -321,7 +375,7 @@ int run_tui() {
     int offset = 0;
 
     while (true) {
-        const int maxRow = static_cast<int>(users.size()) + 4;
+        const int maxRow = static_cast<int>(users.size()) + 6;
         if (cursor > maxRow) cursor = maxRow;
 
         constexpr int pageSize = 12;
@@ -345,8 +399,10 @@ int run_tui() {
             const int removeHomeRow = static_cast<int>(users.size());
             const int forceRow = removeHomeRow + 1;
             const int showSystemRow = removeHomeRow + 2;
-            const int deleteRow = removeHomeRow + 3;
-            const int cancelRow = removeHomeRow + 4;
+            const int nameRow = removeHomeRow + 3;
+            const int selectNameRow = removeHomeRow + 4;
+            const int deleteRow = removeHomeRow + 5;
+            const int cancelRow = removeHomeRow + 6;
 
             options.message.clear();
             if (cursor < static_cast<int>(users.size())) {
@@ -360,6 +416,15 @@ int run_tui() {
                 users = read_users(options.showSystemUsers);
                 cursor = 0;
                 offset = 0;
+            } else if (cursor == nameRow) {
+                options.name = edit_name(options.name);
+            } else if (cursor == selectNameRow) {
+                const int matches = select_by_name(users, options.name);
+                if (matches == 0) {
+                    options.message = "No users matched name.";
+                } else {
+                    options.message = "Selected users matching name: " + std::to_string(matches);
+                }
             } else if (cursor == deleteRow) {
                 if (selected_count(users) == 0) {
                     options.message = "Select at least one user.";

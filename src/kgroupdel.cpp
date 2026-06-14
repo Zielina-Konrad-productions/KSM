@@ -37,6 +37,7 @@ struct GroupEntry {
 struct Options {
     bool force = false;
     bool showSystemGroups = false;
+    std::string name;
     std::string keyword;
     std::string message;
 };
@@ -214,14 +215,18 @@ void draw(const std::vector<GroupEntry>& groups, const Options& options, int cur
 
     const int forceRow = static_cast<int>(groups.size());
     const int showSystemRow = forceRow + 1;
-    const int keywordRow = forceRow + 2;
-    const int selectKeywordRow = forceRow + 3;
-    const int deleteRow = forceRow + 4;
-    const int cancelRow = forceRow + 5;
+    const int nameRow = forceRow + 2;
+    const int selectNameRow = forceRow + 3;
+    const int keywordRow = forceRow + 4;
+    const int selectKeywordRow = forceRow + 5;
+    const int deleteRow = forceRow + 6;
+    const int cancelRow = forceRow + 7;
 
     std::cout << '\n';
     draw_row(forceRow, cursor, "Force delete        " + yes_no(options.force));
     draw_row(showSystemRow, cursor, "Show system groups  " + yes_no(options.showSystemGroups));
+    draw_row(nameRow, cursor, "Select by name      " + (options.name.empty() ? DIM + "(empty)" + RESET : options.name));
+    draw_row(selectNameRow, cursor, "Select name matches Enter");
     draw_row(keywordRow, cursor, "Keyword             " + (options.keyword.empty() ? DIM + "(empty)" + RESET : options.keyword));
     draw_row(selectKeywordRow, cursor, "Select by keyword   Enter");
     draw_row(deleteRow, cursor, "Delete selected     Enter", true);
@@ -293,6 +298,39 @@ std::string edit_keyword(std::string value) {
             value.push_back(key.value);
         }
     }
+}
+
+std::string edit_name(std::string value) {
+    while (true) {
+        clear_screen();
+        banner();
+        std::cout << CYAN << "Editing:" << RESET << " Select by name\n";
+        std::cout << "Groups containing this text will be selected. Enter saves, Esc cancels.\n\n";
+        std::cout << BLUE << "Name" << RESET << ": " << value << std::flush;
+
+        const KeyPress key = read_key();
+        if (key.key == Key::Enter) return trim(value);
+        if (key.key == Key::Escape || key.key == Key::CtrlC) return value;
+        if (key.key == Key::Backspace) {
+            if (!value.empty()) value.pop_back();
+        } else if (key.key == Key::Character) {
+            value.push_back(key.value);
+        }
+    }
+}
+
+int select_by_name(std::vector<GroupEntry>& groups, const std::string& name) {
+    const std::string needle = lower_text(trim(name));
+    if (needle.empty()) return 0;
+
+    int matches = 0;
+    for (auto& group : groups) {
+        if (lower_text(group.name).find(needle) != std::string::npos) {
+            group.selected = true;
+            ++matches;
+        }
+    }
+    return matches;
 }
 
 int select_by_keyword(std::vector<GroupEntry>& groups, const std::string& keyword) {
@@ -383,7 +421,7 @@ int run_tui() {
     int offset = 0;
 
     while (true) {
-        const int maxRow = static_cast<int>(groups.size()) + 5;
+        const int maxRow = static_cast<int>(groups.size()) + 7;
         if (cursor > maxRow) cursor = maxRow;
 
         constexpr int pageSize = 12;
@@ -406,10 +444,12 @@ int run_tui() {
         } else if (key.key == Key::Enter) {
             const int forceRow = static_cast<int>(groups.size());
             const int showSystemRow = forceRow + 1;
-            const int keywordRow = forceRow + 2;
-            const int selectKeywordRow = forceRow + 3;
-            const int deleteRow = forceRow + 4;
-            const int cancelRow = forceRow + 5;
+            const int nameRow = forceRow + 2;
+            const int selectNameRow = forceRow + 3;
+            const int keywordRow = forceRow + 4;
+            const int selectKeywordRow = forceRow + 5;
+            const int deleteRow = forceRow + 6;
+            const int cancelRow = forceRow + 7;
 
             options.message.clear();
             if (cursor < static_cast<int>(groups.size())) {
@@ -421,6 +461,15 @@ int run_tui() {
                 groups = read_groups(options.showSystemGroups);
                 cursor = 0;
                 offset = 0;
+            } else if (cursor == nameRow) {
+                options.name = edit_name(options.name);
+            } else if (cursor == selectNameRow) {
+                const int matches = select_by_name(groups, options.name);
+                if (matches == 0) {
+                    options.message = "No groups matched name.";
+                } else {
+                    options.message = "Selected groups matching name: " + std::to_string(matches);
+                }
             } else if (cursor == keywordRow) {
                 options.keyword = edit_keyword(options.keyword);
             } else if (cursor == selectKeywordRow) {
