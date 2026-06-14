@@ -155,6 +155,7 @@ void update_progress_from_line(ProgressState& state, const std::string& line);
 Element render_progress(const ProgressState& state);
 bool command_exists(const std::string& command);
 bool zpm_installed();
+std::vector<ListItem> read_zpm_binaries();
 
 void version() {
     std::cout << BLUE << "kcontrol component version: v" << ksm_version::version() << RESET << '\n';
@@ -227,7 +228,7 @@ std::vector<Category> categories() {
         items.push_back({
             "ZPM",
             {
-                {"Packages", "zpm", {}, "Use ZPM package functions inside KSM", true, ModuleKind::ZpmExtension}
+                {"Binaries", "zpm", {}, "Launch compiled ZPM binaries inside KSM", true, ModuleKind::ZpmExtension}
             }
         });
     }
@@ -579,17 +580,48 @@ bool zpm_installed() {
     return fs::exists("/opt/ZPM", ec) && fs::is_directory("/opt/ZPM", ec);
 }
 
-std::string zpm_command() {
-    const std::vector<std::string> candidates = {
-        "/usr/bin/zpm",
-        "/usr/local/bin/zpm",
-        "/opt/ZPM/bin/zpm",
-        "/opt/ZPM/zpm"
-    };
-    for (const auto& candidate : candidates) {
-        if (access(candidate.c_str(), X_OK) == 0) return candidate;
+std::string shell_quote(const std::string& value) {
+    std::string quoted = "'";
+    for (char ch : value) {
+        if (ch == '\'') quoted += "'\\''";
+        else quoted += ch;
     }
-    return "zpm";
+    quoted += "'";
+    return quoted;
+}
+
+std::vector<ListItem> read_zpm_binaries() {
+    std::vector<ListItem> binaries;
+    const std::vector<fs::path> directories = {
+        "/opt/ZPM/bin",
+        "/opt/ZPM"
+    };
+
+    for (const auto& directory : directories) {
+        std::error_code ec;
+        if (!fs::exists(directory, ec) || !fs::is_directory(directory, ec)) continue;
+        for (const auto& entry : fs::directory_iterator(directory, ec)) {
+            if (ec) break;
+            const fs::path path = entry.path();
+            if (!entry.is_regular_file(ec)) continue;
+            if (path.extension() == ".cpp" || path.extension() == ".h" ||
+                path.extension() == ".hpp" || path.extension() == ".o") {
+                continue;
+            }
+            if (access(path.string().c_str(), X_OK) != 0) continue;
+
+            ListItem item;
+            item.key = path.string();
+            item.label = path.filename().string();
+            item.detail = path.parent_path().string();
+            binaries.push_back(item);
+        }
+    }
+
+    std::sort(binaries.begin(), binaries.end(), [](const ListItem& a, const ListItem& b) {
+        return lower(a.label) < lower(b.label);
+    });
+    return binaries;
 }
 
 std::string strip_ansi(const std::string& value) {
@@ -1221,26 +1253,33 @@ NativePanel make_native_panel(const Module& module) {
             "Source: github.com/Zielina-Konrad-productions/ZPM",
             "Extensions is the place for optional tools to install.",
             "After /opt/ZPM exists, KSM adds a separate ZPM tab.",
-            "Install uses the repository INSTALL.sh through curl."
+            "Install downloads the repository archive and runs its INSTALL.sh."
         };
         panel.message = zpm_installed()
             ? "ZPM extension detected. Reopen menu to use the ZPM tab."
             : "ZPM is not installed yet. Use Install ZPM extension.";
         break;
     case ModuleKind::ZpmExtension:
-        panel.list = {
-            {"terminal", "Mini terminal", "Run a ZPM function to see output here.", false, false, {}}
-        };
+        panel.focus = PanelFocus::List;
+        {
+            std::vector<ListItem> binaries = read_zpm_binaries();
+            panel.list = binaries;
+            if (panel.list.empty()) {
+                panel.list = {
+                    {"terminal", "Mini terminal", "No ZPM binaries found in /opt/ZPM yet.", false, false, {}}
+                };
+            }
+            panel.message = binaries.empty() ? "No ZPM binaries found." : "ZPM binaries loaded.";
+        }
         panel.rows = {
-            {RowType::Choice, "function", "Function", "install", {"install", "remove", "search", "info", "update", "upgrade"}},
-            {RowType::Text, "package", "Package", "", {}, false, false, "Used by install/remove/search/info"},
-            {RowType::Action, "run_zpm", "Run ZPM function", "", {}, false, true}
+            {RowType::Text, "args", "Arguments", "", {}, false, false, "Passed to the selected ZPM binary"},
+            {RowType::Action, "reload_zpm_bins", "Reload binaries", "", {}, false, false},
+            {RowType::Action, "run_zpm_binary", "Run selected binary", "", {}, false, true}
         };
         panel.detailLines = {
-            "ZPM functions are exposed here as part of the KSM GUI.",
-            "Package is required for install, remove, search and info."
+            "Choose a compiled ZPM binary from the list.",
+            "KSM runs it through bash and shows output in the mini terminal."
         };
-        panel.message = "ZPM extension ready.";
         break;
     case ModuleKind::Uninstall:
         panel.rows = {
@@ -1282,6 +1321,16 @@ Element row_line(const Row& row, bool active, bool focused) {
 }
 
 Element list_line(const ListItem& item, bool active, bool focused, bool multi) {
+    if (item.key.rfind("terminal", 0) == 0) {
+        auto line = hbox({
+            text(fit_text(item.label, 18)) | size(WIDTH, EQUAL, 20),
+            text(item.detail) | flex
+        });
+        if (active && focused) return line | bold | color(Color::White) | bgcolor(Color::Blue);
+        if (active) return line | bold | color(Color::Cyan);
+        return line | color(Color::Green);
+    }
+
     auto marker = multi ? checkbox_element(item.selected) : text(active ? ">" : " ");
     auto line = hbox({
         marker | size(WIDTH, EQUAL, 4),
@@ -1558,6 +1607,10 @@ void toggle_current_list_item(NativePanel& panel) {
     }
 
     panel.selectedKey = item.key;
+    if (panel.kind == ModuleKind::ZpmExtension) {
+        panel.message = item.key == "terminal" ? "No ZPM binary selected." : "Selected ZPM binary: " + item.label + ".";
+        return;
+    }
     panel.message = "Selected " + item.label + ".";
     if (panel.kind == ModuleKind::UserMod) load_user_into_panel(panel, item.key);
     if (panel.kind == ModuleKind::GroupMod) load_group_into_panel(panel, item.key);
@@ -1654,12 +1707,26 @@ void handle_local_action(NativePanel& panel, const std::string& id) {
         load_ssh_config(panel);
         return;
     }
+    if (id == "reload_zpm_bins") {
+        panel.list = read_zpm_binaries();
+        panel.listIndex = 0;
+        panel.selectedKey.clear();
+        if (panel.list.empty()) {
+            panel.list = {
+                {"terminal", "Mini terminal", "No ZPM binaries found in /opt/ZPM yet.", false, false, {}}
+            };
+            panel.message = "No ZPM binaries found.";
+        } else {
+            panel.message = "ZPM binaries reloaded.";
+        }
+        return;
+    }
 }
 
 bool is_local_action(const std::string& id) {
     return id == "refresh_sysinfo" || id == "refresh_home" || id == "refresh_users" ||
            id == "refresh_groups" || id == "select_keyword" || id == "select_name" || id == "reload_services" ||
-           id == "load_perm" || id == "load_network" || id == "load_ssh";
+           id == "load_perm" || id == "load_network" || id == "load_ssh" || id == "reload_zpm_bins";
 }
 
 bool valid_username(const std::string& username) {
@@ -2130,16 +2197,25 @@ void execute_install_zpm(NativePanel& panel) {
         panel.noticeOk = false;
         return;
     }
+    if (!command_exists("tar")) {
+        panel.message = "Missing tar. Install tar first.";
+        panel.noticeTitle = "ZPM INSTALL FAILED";
+        panel.noticeBody = "tar is required to unpack the ZPM repository archive.";
+        panel.noticeOk = false;
+        return;
+    }
 
-    const std::string script = "/tmp/ksm-zpm-install.sh";
-    CommandResult result = run_command({
-        "curl",
-        "-fsSL",
-        "https://raw.githubusercontent.com/Zielina-Konrad-productions/ZPM/main/INSTALL.sh",
-        "-o",
-        script
-    });
-    if (result.code == 0) result = run_command({"sh", script}, true);
+    const std::string script =
+        "set -e; "
+        "rm -rf /tmp/ksm-zpm-src /tmp/ksm-zpm.tar.gz; "
+        "mkdir -p /tmp/ksm-zpm-src; "
+        "curl -fsSL https://github.com/Zielina-Konrad-productions/ZPM/archive/refs/heads/main.tar.gz -o /tmp/ksm-zpm.tar.gz; "
+        "tar -xzf /tmp/ksm-zpm.tar.gz -C /tmp/ksm-zpm-src --strip-components=1; "
+        "cd /tmp/ksm-zpm-src; "
+        "if [ -f ./INSTALL.sh ]; then bash ./INSTALL.sh; "
+        "elif [ -f ./src/build.sh ]; then bash ./src/build.sh; "
+        "else echo 'No INSTALL.sh or src/build.sh found in ZPM repository.'; exit 1; fi";
+    CommandResult result = run_command({"bash", "-lc", script}, true);
 
     refresh_zpm_status(panel);
     set_terminal_output(panel, "ZPM installer output", result.output);
@@ -2160,32 +2236,33 @@ void execute_install_zpm(NativePanel& panel) {
     }
 }
 
-void execute_zpm_function(NativePanel& panel) {
+void execute_zpm_binary(NativePanel& panel) {
     if (!ensure_root_auth(panel.message)) return;
     if (!zpm_installed()) {
         panel.message = "ZPM is not installed in /opt/ZPM.";
         return;
     }
 
-    const std::string function = row_value(panel, "function");
-    const std::string package = trim(row_value(panel, "package"));
-    std::vector<std::string> args = {zpm_command(), function};
-
-    if (function == "install" || function == "remove" || function == "search" || function == "info") {
-        if (package.empty()) {
-            panel.message = "Package is required for " + function + ".";
-            return;
-        }
-        args.push_back(package);
+    std::string binary = panel.selectedKey;
+    if (binary.empty() && !panel.list.empty()) binary = panel.list[panel.listIndex].key;
+    if (binary.empty() || binary == "terminal") {
+        panel.message = "Select a ZPM binary first.";
+        return;
     }
 
-    const bool needsRoot = function == "install" || function == "remove" || function == "update" || function == "upgrade";
-    const CommandResult result = run_command(args, needsRoot);
-    refresh_zpm_status(panel);
-    set_terminal_output(panel, "ZPM: " + function + (package.empty() ? "" : " " + package), result.output);
+    std::error_code ec;
+    if (!fs::exists(binary, ec) || !fs::is_regular_file(binary, ec)) {
+        panel.message = "Selected ZPM binary is missing.";
+        return;
+    }
+
+    const std::string arguments = trim(row_value(panel, "args"));
+    const std::string command = shell_quote(binary) + (arguments.empty() ? "" : " " + arguments);
+    const CommandResult result = run_command({"bash", "-lc", command}, true);
+    set_terminal_output(panel, fs::path(binary).filename().string() + (arguments.empty() ? "" : " " + arguments), result.output);
     panel.message = result.code == 0
-        ? "ZPM function completed."
-        : "ZPM function failed with code " + std::to_string(result.code) + ".";
+        ? "ZPM binary completed."
+        : "ZPM binary failed with code " + std::to_string(result.code) + ".";
 }
 
 void execute_upgrade(NativePanel& panel) {
@@ -2270,7 +2347,7 @@ void execute_panel_action(NativePanel& panel, const std::string& id) {
     else if (panel.kind == ModuleKind::SSH && id == "apply_ssh") execute_ssh(panel);
     else if (panel.kind == ModuleKind::Firewall) execute_firewall(panel, id);
     else if (panel.kind == ModuleKind::ExtensionInstall && id == "install_zpm") execute_install_zpm(panel);
-    else if (panel.kind == ModuleKind::ZpmExtension && id == "run_zpm") execute_zpm_function(panel);
+    else if (panel.kind == ModuleKind::ZpmExtension && id == "run_zpm_binary") execute_zpm_binary(panel);
     else if (panel.kind == ModuleKind::Upgrade && id == "run_upgrade") execute_upgrade(panel);
     else if (panel.kind == ModuleKind::Uninstall && id == "run_uninstall") execute_uninstall(panel);
     else panel.message = "Action not implemented.";
