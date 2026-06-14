@@ -749,9 +749,9 @@ std::string detect_package_manager() {
 }
 
 std::vector<std::string> update_dependencies_for(const std::string& pm) {
-    if (pm == "apt") return {"curl", "tar", "gzip", "g++", "bash", "coreutils"};
-    if (pm == "zypper") return {"curl", "tar", "gzip", "gcc-c++", "bash", "coreutils"};
-    if (pm == "dnf") return {"curl", "tar", "gzip", "gcc-c++", "bash", "coreutils"};
+    if (pm == "apt") return {"curl", "tar", "gzip", "g++", "bash", "coreutils", "systemd"};
+    if (pm == "zypper") return {"curl", "tar", "gzip", "gcc-c++", "bash", "coreutils", "systemd"};
+    if (pm == "dnf") return {"curl", "tar", "gzip", "gcc-c++", "bash", "coreutils", "systemd"};
     return {};
 }
 
@@ -759,7 +759,7 @@ bool install_missing_tools() {
     const std::string pm = detect_package_manager();
     const auto deps = update_dependencies_for(pm);
     if (deps.empty()) {
-        std::cout << YELLOW << "[!]" << RESET << " Unsupported package manager. Install curl, tar, gzip, g++ and bash manually.\n";
+        std::cout << YELLOW << "[!]" << RESET << " Unsupported package manager. Install curl, tar, gzip, g++, bash and resolvectl manually.\n";
         return false;
     }
 

@@ -204,9 +204,9 @@ std::string detect_package_manager() {
 }
 
 std::vector<std::string> dependencies_for(const std::string& pm) {
-    if (pm == "apt") return {"g++", "sudo", "coreutils", "nano", "passwd"};
-    if (pm == "zypper") return {"gcc-c++", "sudo", "coreutils", "nano", "shadow"};
-    if (pm == "dnf") return {"gcc-c++", "sudo", "coreutils", "nano", "shadow-utils"};
+    if (pm == "apt") return {"g++", "sudo", "coreutils", "nano", "passwd", "systemd"};
+    if (pm == "zypper") return {"gcc-c++", "sudo", "coreutils", "nano", "shadow", "systemd"};
+    if (pm == "dnf") return {"gcc-c++", "sudo", "coreutils", "nano", "shadow-utils", "systemd"};
     return {};
 }
 
