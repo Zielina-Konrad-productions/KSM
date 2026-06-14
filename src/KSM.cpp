@@ -15,39 +15,20 @@ void show_version() {
 
 void show_help() {
     std::cout << BLUE << "Usage: " << RESET << CYAN << "ksm" << RESET << " <command> [options]\n";
-    std::cout << BLUE << "Main tools:" << RESET << '\n';
-    std::cout << "  " << CYAN << "khome" << RESET << "             Home/help browser\n";
-    std::cout << "  " << CYAN << "kupgr" << RESET << "             GitHub Releases updater\n";
-    std::cout << "  " << CYAN << "kuninstall" << RESET << "        Uninstaller\n";
-    std::cout << "  " << CYAN << "kgroupadd" << RESET << "         Group creator\n";
-    std::cout << "  " << CYAN << "kgroupdel" << RESET << "         Group remover\n";
-    std::cout << "  " << CYAN << "kuseradd" << RESET << "          User creator\n";
-    std::cout << "  " << CYAN << "kuserdel" << RESET << "          User remover\n";
-    std::cout << "  " << CYAN << "knetcfg" << RESET << "           Network interface config\n";
+    std::cout << BLUE << "Commands:" << RESET << '\n';
+    std::cout << "  " << CYAN << "home" << RESET << "       Full KSM home pages\n";
+    std::cout << "  " << CYAN << "upgrade" << RESET << "    Update KSM\n";
+    std::cout << "  " << CYAN << "uninstall" << RESET << "  Uninstall KSM\n";
+    std::cout << "  " << CYAN << "useradd" << RESET << "    Add users\n";
+    std::cout << "  " << CYAN << "userdel" << RESET << "    Delete users\n";
+    std::cout << "  " << CYAN << "groupadd" << RESET << "   Add groups\n";
+    std::cout << "  " << CYAN << "groupdel" << RESET << "   Delete groups\n";
+    std::cout << "  " << CYAN << "netcfg" << RESET << "     Configure network interface\n";
     std::cout << '\n';
-    std::cout << BLUE << "KSM alternatives:" << RESET << '\n';
-    std::cout << "  " << CYAN << "ksm home" << RESET << "          Same as khome\n";
-    std::cout << "  " << CYAN << "ksm upgrade" << RESET << "       Same as kupgr\n";
-    std::cout << "  " << CYAN << "ksm uninstall" << RESET << "     Same as kuninstall\n";
-    std::cout << "  " << CYAN << "ksm groupadd" << RESET << "      Same as kgroupadd\n";
-    std::cout << "  " << CYAN << "ksm groupdel" << RESET << "      Same as kgroupdel\n";
-    std::cout << "  " << CYAN << "ksm useradd" << RESET << "       Same as kuseradd\n";
-    std::cout << "  " << CYAN << "ksm userdel" << RESET << "       Same as kuserdel\n";
-    std::cout << "  " << CYAN << "ksm netcfg" << RESET << "        Same as knetcfg\n";
-    std::cout << '\n';
-    std::cout << BLUE << "Options:" << RESET << '\n';
-    std::cout << "  " << CYAN << "--help, -h" << RESET << "      Show this wrapper help\n";
-    std::cout << "  " << CYAN << "--version, -v" << RESET << "   Show version information\n";
-    std::cout << '\n';
-    std::cout << BLUE << "khome pages:" << RESET << '\n';
-    std::cout << "  " << CYAN << "ksm home -p1" << RESET << "    Show page 1\n";
-    std::cout << "  " << CYAN << "ksm home -pN" << RESET << "    Show page N when it exists\n";
-    std::cout << "  " << CYAN << "ksm home --all" << RESET << "  Show all pages\n";
-    std::cout << '\n';
-    std::cout << BLUE << "updater examples:" << RESET << '\n';
-    std::cout << "  " << CYAN << "ksm upgrade" << RESET << "     Update from latest release\n";
-    std::cout << "  " << CYAN << "ksm upgrade -ex" << RESET << " Update from latest experimental prerelease\n";
-    std::cout << "  " << CYAN << "ksm upgrade -f" << RESET << "  Force reinstall\n";
+    std::cout << BLUE << "Options:" << RESET << " "
+              << CYAN << "--help/-h" << RESET << ", "
+              << CYAN << "--version/-v" << RESET << '\n';
+    std::cout << DIM << "Full tool list: khome -p2 or ksm home -p2" << RESET << '\n';
 }
 
 int run_program(const std::string& program, const std::vector<std::string>& args) {
@@ -176,7 +157,8 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    return run_installed_tool("khome", {});
+    show_help();
+    return 0;
 }
 
 
