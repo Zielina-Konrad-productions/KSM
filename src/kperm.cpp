@@ -2,6 +2,7 @@
 
 #include <cerrno>
 #include <cstring>
+#include <filesystem>
 #include <grp.h>
 #include <pwd.h>
 #include <sys/select.h>
@@ -11,6 +12,8 @@
 #include <unistd.h>
 
 namespace {
+
+namespace fs = std::filesystem;
 
 enum class Key { Up, Down, Left, Right, Tab, Enter, Backspace, Escape, CtrlC, Character, Unknown };
 
@@ -30,6 +33,11 @@ struct Options {
 
 struct ProcessResult {
     int exitCode = 1;
+};
+
+struct BrowserEntry {
+    fs::path path;
+    bool directory = false;
 };
 
 class Terminal {
@@ -83,8 +91,9 @@ void help() {
     std::cout << "Interactive chmod/chown helper.\n\n";
     std::cout << BLUE << "Controls:" << RESET << '\n';
     std::cout << "  Up/Down       Move\n";
+    std::cout << "  Left          Go up in file picker\n";
     std::cout << "  Tab           Jump to Apply/Top\n";
-    std::cout << "  Enter         Edit/toggle/action\n";
+    std::cout << "  Enter         Browse path, edit/toggle/action\n";
     std::cout << "  q             Cancel\n";
 }
 
@@ -137,6 +146,13 @@ std::string field_value(const std::string& value, const std::string& empty = "(e
     return value.empty() ? DIM + empty + RESET : value;
 }
 
+std::string path_text(const fs::path& path) {
+    std::error_code ec;
+    const fs::path absolute = fs::absolute(path, ec);
+    if (!ec) return absolute.lexically_normal().string();
+    return path.lexically_normal().string();
+}
+
 ProcessResult run_process(const std::vector<std::string>& args) {
     const pid_t pid = fork();
     if (pid < 0) return {1};
@@ -174,6 +190,116 @@ void load_current(Options& options) {
     options.message = "Loaded current permissions.";
 }
 
+fs::path picker_start_path(const std::string& current) {
+    std::error_code ec;
+    if (current.empty()) return fs::current_path(ec);
+
+    fs::path path(current);
+    if (fs::is_regular_file(path, ec)) return path.parent_path();
+    if (fs::is_directory(path, ec)) return path;
+
+    return fs::current_path(ec);
+}
+
+std::vector<BrowserEntry> read_directory(const fs::path& directory) {
+    std::vector<BrowserEntry> entries;
+    std::error_code ec;
+
+    fs::directory_iterator it(directory, ec);
+    fs::directory_iterator end;
+    while (!ec && it != end) {
+        BrowserEntry entry;
+        entry.path = it->path();
+        entry.directory = it->is_directory(ec);
+        entries.push_back(entry);
+        it.increment(ec);
+    }
+
+    std::sort(entries.begin(), entries.end(), [](const BrowserEntry& a, const BrowserEntry& b) {
+        if (a.directory != b.directory) return a.directory > b.directory;
+        return a.path.filename().string() < b.path.filename().string();
+    });
+    return entries;
+}
+
+void draw_picker_row(int row, int cursor, const std::string& text, bool directory = false) {
+    const bool active = row == cursor;
+    std::cout << (active ? BLUE : "");
+    std::cout << (active ? "> " : "  ");
+    std::cout << (directory ? CYAN : "") << text << RESET << '\n';
+}
+
+std::string pick_path(const std::string& current) {
+    fs::path directory = picker_start_path(current);
+    if (directory.empty()) directory = ".";
+    int cursor = 0;
+    int offset = 0;
+    constexpr int pageSize = 13;
+
+    while (true) {
+        const auto entries = read_directory(directory);
+        const int maxRow = static_cast<int>(entries.size()) + 1;
+
+        clear_screen();
+        banner();
+        std::cout << CYAN << "File picker" << RESET << '\n';
+        std::cout << CYAN << "Current:" << RESET << " " << path_text(directory) << '\n';
+        std::cout << "Up/Down move, Enter select/open, Left goes up, Esc/q cancels.\n\n";
+
+        if (cursor < offset) offset = cursor;
+        if (cursor >= offset + pageSize) offset = cursor - pageSize + 1;
+
+        draw_picker_row(0, cursor, "[select this directory]", true);
+        draw_picker_row(1, cursor, "[..]", true);
+
+        const int firstEntry = std::max(0, offset - 2);
+        const int lastEntry = std::min<int>(static_cast<int>(entries.size()), offset + pageSize - 2);
+        for (int i = firstEntry; i < lastEntry; ++i) {
+            const int row = i + 2;
+            const auto& entry = entries[i];
+            const std::string prefix = entry.directory ? "[dir]  " : "[file] ";
+            draw_picker_row(row, cursor, prefix + entry.path.filename().string(), entry.directory);
+        }
+
+        if (entries.empty()) std::cout << DIM << "\n  (empty directory)" << RESET << '\n';
+        std::cout << std::flush;
+
+        const KeyPress key = read_key();
+        if (key.key == Key::Up) {
+            cursor = std::max(0, cursor - 1);
+        } else if (key.key == Key::Down) {
+            cursor = std::min(maxRow, cursor + 1);
+        } else if (key.key == Key::Left) {
+            directory = directory.parent_path().empty() ? directory : directory.parent_path();
+            cursor = 0;
+            offset = 0;
+        } else if (key.key == Key::Enter) {
+            if (cursor == 0) return path_text(directory);
+            if (cursor == 1) {
+                directory = directory.parent_path().empty() ? directory : directory.parent_path();
+                cursor = 0;
+                offset = 0;
+                continue;
+            }
+
+            const int index = cursor - 2;
+            if (index >= 0 && index < static_cast<int>(entries.size())) {
+                const auto& entry = entries[index];
+                if (entry.directory) {
+                    directory = entry.path;
+                    cursor = 0;
+                    offset = 0;
+                } else {
+                    return path_text(entry.path);
+                }
+            }
+        } else if (key.key == Key::Escape || key.key == Key::CtrlC ||
+                   (key.key == Key::Character && key.value == 'q')) {
+            return current;
+        }
+    }
+}
+
 void draw_field(int row, int cursor, const std::string& label, const std::string& value) {
     const bool active = row == cursor;
     std::cout << (active ? BLUE : "");
@@ -188,7 +314,7 @@ void draw(const Options& options, int cursor) {
     banner();
     std::cout << CYAN << "Arrows:" << RESET << " move  "
               << CYAN << "Tab:" << RESET << " apply/top  "
-              << CYAN << "Enter:" << RESET << " edit/action  "
+              << CYAN << "Enter:" << RESET << " browse/edit/action  "
               << CYAN << "q:" << RESET << " cancel\n\n";
 
     draw_field(0, cursor, "Path", field_value(options.path));
@@ -337,7 +463,10 @@ int run_tui(Options options) {
             if (cursor == 4) options.recursive = !options.recursive;
         } else if (key.key == Key::Enter) {
             options.message.clear();
-            if (cursor == 0) options.path = edit_value("Path", options.path);
+            if (cursor == 0) {
+                options.path = pick_path(options.path);
+                if (!options.path.empty()) load_current(options);
+            }
             else if (cursor == 1) options.owner = edit_value("Owner", options.owner);
             else if (cursor == 2) options.group = edit_value("Group", options.group);
             else if (cursor == 3) options.mode = edit_value("Mode", options.mode);
@@ -371,6 +500,10 @@ int main(int argc, char* argv[]) {
         std::cerr << RED << "unknown option:" << RESET << " " << arg << '\n';
         std::cerr << "run 'kperm --help' to list options.\n";
         return 1;
+    }
+    if (options.path.empty()) {
+        std::error_code ec;
+        options.path = fs::current_path(ec).string();
     }
     if (!options.path.empty()) load_current(options);
     return run_tui(options);
