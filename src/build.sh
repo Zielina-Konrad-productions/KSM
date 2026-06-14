@@ -38,6 +38,8 @@ cd "$SRC_DIR"
 
 printf "%b---------------------------Building KSM---------------------------%b\n" "$BLUE" "$RESET"
 
+BUILD_SOURCES="KSM.cpp kcontrol.cpp kupgr.cpp"
+
 build_one() {
     file="$1"
     name="${file%.cpp}"
@@ -71,17 +73,23 @@ build_one() {
 
 pids=""
 
-for file in *.cpp; do
-    [ -e "$file" ] || continue
-
-    name="${file%.cpp}"
-    if [ "$name" = "kinstall" ]; then
-        warn "Skipping installer-only source: $file"
+for file in $BUILD_SOURCES; do
+    if [ ! -f "$file" ]; then
+        fail "Missing required source: $file"
+        failed=1
         continue
     fi
 
     build_one "$file" &
     pids="$pids $!"
+done
+
+for file in *.cpp; do
+    [ -e "$file" ] || continue
+    case " $BUILD_SOURCES " in
+        *" $file "*) continue ;;
+    esac
+    warn "Skipping non-public legacy source: $file"
 done
 
 failed=0
