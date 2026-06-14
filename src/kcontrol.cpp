@@ -182,7 +182,7 @@ std::vector<Category> categories() {
         {
             "Users",
             {
-                {"Add Users", "kuseradd", {}, "Create one or many users", true, ModuleKind::UserAdd},
+                {"Add Users", "kuseradd", {}, "Create users", true, ModuleKind::UserAdd},
                 {"Modify Users", "kusermod", {}, "Edit user account settings", true, ModuleKind::UserMod},
                 {"Delete Users", "kuserdel", {}, "Remove user accounts", true, ModuleKind::UserDel},
                 {"Add Groups", "kgroupadd", {}, "Create groups", true, ModuleKind::GroupAdd},
@@ -1003,7 +1003,6 @@ NativePanel make_native_panel(const Module& module) {
         break;
     case ModuleKind::UserAdd:
         panel.rows = {
-            {RowType::Bool, "many", "More than one", "", {}, false, false},
             {RowType::Text, "amount", "Amount", "1"},
             {RowType::Text, "username", "Username template", ""},
             {RowType::Text, "password", "Password template", ""},
@@ -1014,6 +1013,11 @@ NativePanel make_native_panel(const Module& module) {
             {RowType::Text, "groups", "Extra groups", "", {}, false, false, "Enter opens group picker"},
             {RowType::Bool, "sudo", "Add sudo group", "", {}, false, false},
             {RowType::Action, "create_users", "Create users", "", {}, false, true}
+        };
+        panel.detailLines = {
+            "Use $i in templates to insert the generated number.",
+            "Example: user$i creates user1, user2, user3.",
+            "If Amount is greater than 1 and Username template has no $i, KSM appends $i automatically."
         };
         break;
     case ModuleKind::UserDel:
@@ -1047,13 +1051,17 @@ NativePanel make_native_panel(const Module& module) {
         break;
     case ModuleKind::GroupAdd:
         panel.rows = {
-            {RowType::Bool, "many", "More than one", "", {}, false, false},
             {RowType::Text, "amount", "Amount", "1"},
             {RowType::Text, "name", "Group template", ""},
             {RowType::Text, "gid", "GID start", ""},
             {RowType::Bool, "system", "System group", "", {}, false, false},
             {RowType::Text, "members", "Members", "", {}, false, false, "Enter opens user picker"},
             {RowType::Action, "create_groups", "Create groups", "", {}, false, true}
+        };
+        panel.detailLines = {
+            "Use $i in the group template to insert the generated number.",
+            "Example: team$i creates team1, team2, team3.",
+            "If Amount is greater than 1 and Group template has no $i, KSM appends $i automatically."
         };
         break;
     case ModuleKind::GroupDel:
@@ -1569,8 +1577,7 @@ std::string add_group(std::string groups, const std::string& group) {
 void execute_useradd(NativePanel& panel) {
     if (!ensure_root_auth(panel.message)) return;
 
-    const bool many = row_checked(panel, "many");
-    const int count = many ? parse_positive(row_value(panel, "amount"), 1) : 1;
+    const int count = parse_positive(row_value(panel, "amount"), 1);
     std::string usernameTemplate = lower(trim(row_value(panel, "username")));
     const std::string passwordTemplate = row_value(panel, "password");
     const std::string fullNameTemplate = row_value(panel, "full_name");
@@ -1702,8 +1709,7 @@ void execute_usermod(NativePanel& panel) {
 
 void execute_groupadd(NativePanel& panel) {
     if (!ensure_root_auth(panel.message)) return;
-    const bool many = row_checked(panel, "many");
-    const int count = many ? parse_positive(row_value(panel, "amount"), 1) : 1;
+    const int count = parse_positive(row_value(panel, "amount"), 1);
     std::string groupTemplate = lower(trim(row_value(panel, "name")));
     const std::string gidText = trim(row_value(panel, "gid"));
     const std::string members = trim(row_value(panel, "members"));

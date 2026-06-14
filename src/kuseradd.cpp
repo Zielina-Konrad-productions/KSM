@@ -30,7 +30,6 @@ struct KeyPress {
 };
 
 struct Options {
-    bool many = false;
     int count = 1;
     std::string usernameTemplate;
     std::string passwordTemplate;
@@ -286,7 +285,7 @@ void toggle_group(std::vector<std::string>& groups, const std::string& group) {
 }
 
 int effective_count(const Options& options) {
-    return options.many ? options.count : 1;
+    return std::max(1, options.count);
 }
 
 std::string effective_username_template(const Options& options) {
@@ -361,20 +360,19 @@ void draw(const Options& options, int selected) {
               << CYAN << "Tab:" << RESET << " jump  "
               << CYAN << "Enter:" << RESET << " edit/toggle/action  "
               << CYAN << "q:" << RESET << " cancel\n";
-    std::cout << "Use $i in templates for multi-user generation.\n\n";
+    std::cout << "Use $i in templates for generated number. If amount > 1 and username has no $i, KSM appends it.\n\n";
 
-    draw_field(0, selected, "More than one", yes_no(options.many));
-    draw_field(1, selected, "Amount", std::to_string(options.count), !options.many);
-    draw_field(2, selected, "Username template", options.usernameTemplate.empty() ? DIM + "(empty)" + RESET : options.usernameTemplate);
-    draw_field(3, selected, "Password template", mask(options.passwordTemplate));
-    draw_field(4, selected, "Full name template", options.fullNameTemplate.empty() ? DIM + "(empty)" + RESET : options.fullNameTemplate);
-    draw_field(5, selected, "Create home", yes_no(options.createHome));
-    draw_field(6, selected, "Login shell", options.shellTemplate);
-    draw_field(7, selected, "Home path", options.homeTemplate.empty() ? DIM + "(system default)" + RESET : options.homeTemplate);
-    draw_field(8, selected, "Extra groups", options.groupsTemplate.empty() ? DIM + "(none)" + RESET : options.groupsTemplate);
-    draw_field(9, selected, "Add sudo group", yes_no(options.addSudoGroup));
-    draw_field(10, selected, "Create users", "Enter");
-    draw_field(11, selected, "Cancel", "Enter or q");
+    draw_field(0, selected, "Amount", std::to_string(options.count));
+    draw_field(1, selected, "Username template", options.usernameTemplate.empty() ? DIM + "(empty)" + RESET : options.usernameTemplate);
+    draw_field(2, selected, "Password template", mask(options.passwordTemplate));
+    draw_field(3, selected, "Full name template", options.fullNameTemplate.empty() ? DIM + "(empty)" + RESET : options.fullNameTemplate);
+    draw_field(4, selected, "Create home", yes_no(options.createHome));
+    draw_field(5, selected, "Login shell", options.shellTemplate);
+    draw_field(6, selected, "Home path", options.homeTemplate.empty() ? DIM + "(system default)" + RESET : options.homeTemplate);
+    draw_field(7, selected, "Extra groups", options.groupsTemplate.empty() ? DIM + "(none)" + RESET : options.groupsTemplate);
+    draw_field(8, selected, "Add sudo group", yes_no(options.addSudoGroup));
+    draw_field(9, selected, "Create users", "Enter");
+    draw_field(10, selected, "Cancel", "Enter or q");
 
     draw_preview(options);
     if (!options.message.empty()) {
@@ -674,7 +672,7 @@ int run_creation(const Options& options) {
 }
 
 void move_selection(int& selected, int delta) {
-    constexpr int maxField = 11;
+    constexpr int maxField = 10;
     selected += delta;
     if (selected < 0) {
         selected = maxField;
@@ -686,17 +684,10 @@ void move_selection(int& selected, int delta) {
 
 void adjust_field(Options& options, int selected, int delta) {
     if (selected == 0) {
-        options.many = !options.many;
-        if (options.many) {
-            if (options.count == 1) {
-                options.count = 2;
-            }
-        }
-    } else if (selected == 1 && options.many) {
         options.count = std::max(1, options.count + delta);
-    } else if (selected == 5) {
+    } else if (selected == 4) {
         options.createHome = !options.createHome;
-    } else if (selected == 9) {
+    } else if (selected == 8) {
         options.addSudoGroup = !options.addSudoGroup;
     }
 }
@@ -704,24 +695,22 @@ void adjust_field(Options& options, int selected, int delta) {
 bool edit_field(Options& options, int selected, int& exitCode) {
     options.message.clear();
 
-    if (selected == 0 || selected == 5 || selected == 9) {
+    if (selected == 4 || selected == 8) {
         adjust_field(options, selected, 1);
         return false;
     }
-    if (selected == 1) {
-        if (options.many) {
-            options.count = std::max(1, options.count + 1);
-        }
+    if (selected == 0) {
+        options.count = std::max(1, options.count + 1);
         return false;
     }
-    if (selected == 2) options.usernameTemplate = edit_username_template(options.usernameTemplate);
-    if (selected == 3) options.passwordTemplate = edit_value("Password template", options.passwordTemplate, true);
-    if (selected == 4) options.fullNameTemplate = edit_value("Full name template", options.fullNameTemplate, false);
-    if (selected == 6) options.shellTemplate = edit_value("Login shell", options.shellTemplate, false);
-    if (selected == 7) options.homeTemplate = edit_value("Home path", options.homeTemplate, false);
-    if (selected == 8) options.groupsTemplate = select_groups(options.groupsTemplate);
+    if (selected == 1) options.usernameTemplate = edit_username_template(options.usernameTemplate);
+    if (selected == 2) options.passwordTemplate = edit_value("Password template", options.passwordTemplate, true);
+    if (selected == 3) options.fullNameTemplate = edit_value("Full name template", options.fullNameTemplate, false);
+    if (selected == 5) options.shellTemplate = edit_value("Login shell", options.shellTemplate, false);
+    if (selected == 6) options.homeTemplate = edit_value("Home path", options.homeTemplate, false);
+    if (selected == 7) options.groupsTemplate = select_groups(options.groupsTemplate);
 
-    if (selected == 10) {
+    if (selected == 9) {
         if (!validate_options(options)) {
             return false;
         }
@@ -731,7 +720,7 @@ bool edit_field(Options& options, int selected, int& exitCode) {
         }
     }
 
-    if (selected == 11) {
+    if (selected == 10) {
         exitCode = 0;
         return true;
     }
@@ -767,7 +756,7 @@ int run_tui() {
         } else if (key.key == Key::Down) {
             move_selection(selected, 1);
         } else if (key.key == Key::Tab) {
-            selected = selected < 10 ? 10 : 0;
+            selected = selected < 9 ? 9 : 0;
         } else if (key.key == Key::Left) {
             adjust_field(options, selected, -1);
         } else if (key.key == Key::Right) {

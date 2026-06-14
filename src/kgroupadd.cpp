@@ -38,7 +38,6 @@ struct UserEntry {
 };
 
 struct Options {
-    bool many = false;
     int count = 1;
     std::string groupTemplate;
     std::string gidStart;
@@ -241,18 +240,27 @@ bool digits_only(const std::string& value) {
 }
 
 int effective_count(const Options& options) {
-    return options.many ? options.count : 1;
+    return std::max(1, options.count);
+}
+
+std::string effective_group_template(const Options& options) {
+    std::string groupTemplate = trim(options.groupTemplate);
+    if (effective_count(options) > 1 && groupTemplate.find("$i") == std::string::npos) {
+        groupTemplate += "$i";
+    }
+    return groupTemplate;
 }
 
 std::vector<GroupPlan> build_plan(const Options& options) {
     std::vector<GroupPlan> plan;
     const bool hasGid = !trim(options.gidStart).empty();
     const unsigned long gidBase = hasGid ? std::strtoul(options.gidStart.c_str(), nullptr, 10) : 0;
+    const std::string groupTemplate = effective_group_template(options);
 
     for (int i = 1; i <= effective_count(options); ++i) {
         GroupPlan group;
         group.index = i;
-        group.name = replace_index(options.groupTemplate, i);
+        group.name = replace_index(groupTemplate, i);
         group.members = options.members;
         group.systemGroup = options.systemGroup;
         if (hasGid) {
@@ -300,16 +308,15 @@ void draw(const Options& options, int selected) {
               << CYAN << "Tab:" << RESET << " jump  "
               << CYAN << "Enter:" << RESET << " edit/select/action  "
               << CYAN << "q:" << RESET << " cancel\n";
-    std::cout << "Use $i in group template for multi-group generation.\n\n";
+    std::cout << "Use $i in group template for generated number. If amount > 1 and name has no $i, KSM appends it.\n\n";
 
-    draw_field(0, selected, "More than one", yes_no(options.many));
-    draw_field(1, selected, "Amount", std::to_string(options.count), !options.many);
-    draw_field(2, selected, "Group template", options.groupTemplate.empty() ? DIM + "(empty)" + RESET : options.groupTemplate);
-    draw_field(3, selected, "GID start", options.gidStart.empty() ? DIM + "(auto)" + RESET : options.gidStart);
-    draw_field(4, selected, "System group", yes_no(options.systemGroup));
-    draw_field(5, selected, "Members", options.members.empty() ? DIM + "(none)" + RESET : options.members);
-    draw_field(6, selected, "Create groups", "Enter");
-    draw_field(7, selected, "Cancel", "Enter or q");
+    draw_field(0, selected, "Amount", std::to_string(options.count));
+    draw_field(1, selected, "Group template", options.groupTemplate.empty() ? DIM + "(empty)" + RESET : options.groupTemplate);
+    draw_field(2, selected, "GID start", options.gidStart.empty() ? DIM + "(auto)" + RESET : options.gidStart);
+    draw_field(3, selected, "System group", yes_no(options.systemGroup));
+    draw_field(4, selected, "Members", options.members.empty() ? DIM + "(none)" + RESET : options.members);
+    draw_field(5, selected, "Create groups", "Enter");
+    draw_field(6, selected, "Cancel", "Enter or q");
 
     draw_preview(options);
     if (!options.message.empty()) {
@@ -551,7 +558,7 @@ int run_creation(const Options& options) {
 }
 
 void move_selection(int& selected, int delta) {
-    constexpr int maxField = 7;
+    constexpr int maxField = 6;
     selected += delta;
     if (selected < 0) selected = maxField;
     if (selected > maxField) selected = 0;
@@ -559,29 +566,26 @@ void move_selection(int& selected, int delta) {
 
 void adjust_field(Options& options, int selected, int delta) {
     if (selected == 0) {
-        options.many = !options.many;
-        if (options.many && options.count == 1) options.count = 2;
-    } else if (selected == 1 && options.many) {
         options.count = std::max(1, options.count + delta);
-    } else if (selected == 4) {
+    } else if (selected == 3) {
         options.systemGroup = !options.systemGroup;
     }
 }
 
 bool edit_field(Options& options, int selected, int& exitCode) {
     options.message.clear();
-    if (selected == 0 || selected == 4) {
+    if (selected == 3) {
         adjust_field(options, selected, 1);
         return false;
     }
-    if (selected == 1) {
-        if (options.many) options.count = std::max(1, options.count + 1);
+    if (selected == 0) {
+        options.count = std::max(1, options.count + 1);
         return false;
     }
-    if (selected == 2) options.groupTemplate = edit_group_template(options.groupTemplate);
-    if (selected == 3) options.gidStart = edit_gid(options.gidStart);
-    if (selected == 5) options.members = select_members(options.members);
-    if (selected == 6) {
+    if (selected == 1) options.groupTemplate = edit_group_template(options.groupTemplate);
+    if (selected == 2) options.gidStart = edit_gid(options.gidStart);
+    if (selected == 4) options.members = select_members(options.members);
+    if (selected == 5) {
         if (!validate_options(options)) return false;
         if (!options.members.empty() && !command_exists("gpasswd")) {
             options.message = "Missing gpasswd for adding members.";
@@ -592,7 +596,7 @@ bool edit_field(Options& options, int selected, int& exitCode) {
             return true;
         }
     }
-    if (selected == 7) {
+    if (selected == 6) {
         exitCode = 0;
         return true;
     }
@@ -625,7 +629,7 @@ int run_tui() {
         } else if (key.key == Key::Down) {
             move_selection(selected, 1);
         } else if (key.key == Key::Tab) {
-            selected = selected < 6 ? 6 : 0;
+            selected = selected < 5 ? 5 : 0;
         } else if (key.key == Key::Left) {
             adjust_field(options, selected, -1);
         } else if (key.key == Key::Right) {
