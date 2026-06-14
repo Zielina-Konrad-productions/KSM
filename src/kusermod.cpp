@@ -99,7 +99,7 @@ void help() {
     std::cout << BLUE << "Controls:" << RESET << '\n';
     std::cout << "  Up/Down       Move\n";
     std::cout << "  Tab           Jump to settings/Top\n";
-    std::cout << "  Enter         Select user, edit field, toggle, or apply\n";
+    std::cout << "  Enter         Select user, edit field, choose groups, toggle, or apply\n";
     std::cout << "  q             Cancel\n";
 }
 
@@ -150,6 +150,60 @@ std::string yes_no(bool value) {
 
 std::string field_value(const std::string& value) {
     return value.empty() ? DIM + "(unchanged)" + RESET : value;
+}
+
+std::vector<std::string> split_groups(const std::string& groups) {
+    std::vector<std::string> result;
+    std::stringstream ss(groups);
+    std::string item;
+
+    while (std::getline(ss, item, ',')) {
+        item = trim(item);
+        if (!item.empty()) result.push_back(item);
+    }
+
+    return result;
+}
+
+std::string join_groups(const std::vector<std::string>& groups) {
+    std::string result;
+    for (const auto& group : groups) {
+        if (!result.empty()) result += ",";
+        result += group;
+    }
+    return result;
+}
+
+std::vector<std::string> system_groups() {
+    std::vector<std::string> groups;
+    std::ifstream file("/etc/group");
+    std::string line;
+
+    while (std::getline(file, line)) {
+        const auto pos = line.find(':');
+        if (pos == std::string::npos) continue;
+
+        const std::string name = trim(line.substr(0, pos));
+        if (!name.empty()) groups.push_back(name);
+    }
+
+    std::sort(groups.begin(), groups.end());
+    groups.erase(std::unique(groups.begin(), groups.end()), groups.end());
+    return groups;
+}
+
+bool contains_group(const std::vector<std::string>& groups, const std::string& group) {
+    return std::find(groups.begin(), groups.end(), group) != groups.end();
+}
+
+void toggle_group(std::vector<std::string>& groups, const std::string& group) {
+    const auto it = std::find(groups.begin(), groups.end(), group);
+    if (it == groups.end()) {
+        groups.push_back(group);
+        std::sort(groups.begin(), groups.end());
+    } else {
+        groups.erase(it);
+    }
 }
 
 std::vector<UserEntry> read_users(bool showSystemUsers) {
@@ -247,7 +301,7 @@ void draw(const std::vector<UserEntry>& users, const Options& options, int curso
     draw_field(base + 2, cursor, "Home path", field_value(options.homePath));
     draw_row(base + 3, cursor, "Move home             " + yes_no(options.moveHome));
     draw_field(base + 4, cursor, "Login shell", field_value(options.shell));
-    draw_field(base + 5, cursor, "Groups CSV", field_value(options.groups));
+    draw_field(base + 5, cursor, "Groups", field_value(options.groups));
     draw_row(base + 6, cursor, "Append groups         " + yes_no(options.appendGroups));
     draw_row(base + 7, cursor, "Lock password         " + yes_no(options.lockPassword));
     draw_row(base + 8, cursor, "Unlock password       " + yes_no(options.unlockPassword));
@@ -273,6 +327,54 @@ std::string edit_value(const std::string& title, std::string value) {
             if (!value.empty()) value.pop_back();
         } else if (key.key == Key::Character) {
             value.push_back(key.value);
+        }
+    }
+}
+
+std::string select_groups(std::string current) {
+    const std::vector<std::string> groups = system_groups();
+    if (groups.empty()) {
+        return current;
+    }
+
+    std::vector<std::string> selected = split_groups(current);
+    int cursor = 0;
+    int offset = 0;
+    constexpr int pageSize = 14;
+
+    while (true) {
+        clear_screen();
+        banner();
+        std::cout << CYAN << "Group selector" << RESET << '\n';
+        std::cout << "Up/Down move, Enter toggles, Esc/q saves.\n\n";
+
+        if (cursor < offset) offset = cursor;
+        if (cursor >= offset + pageSize) offset = cursor - pageSize + 1;
+
+        const int end = std::min<int>(static_cast<int>(groups.size()), offset + pageSize);
+        for (int i = offset; i < end; ++i) {
+            const bool active = i == cursor;
+            const bool checked = contains_group(selected, groups[i]);
+
+            std::cout << (active ? BLUE : "");
+            std::cout << (active ? "> " : "  ");
+            std::cout << (checked ? GREEN + "[x] " + RESET : DIM + "[ ] " + RESET)
+                      << groups[i] << RESET << '\n';
+        }
+
+        std::cout << "\nSelected: " << (selected.empty() ? "(none)" : join_groups(selected)) << '\n';
+        std::cout << std::flush;
+
+        const KeyPress key = read_key();
+        if (key.key == Key::Up) {
+            cursor = std::max(0, cursor - 1);
+        } else if (key.key == Key::Down) {
+            cursor = std::min<int>(static_cast<int>(groups.size()) - 1, cursor + 1);
+        } else if (key.key == Key::Enter) {
+            toggle_group(selected, groups[cursor]);
+        } else if (key.key == Key::Escape || key.key == Key::CtrlC ||
+                   (key.key == Key::Character && key.value == 'q')) {
+            return join_groups(selected);
         }
     }
 }
@@ -451,7 +553,7 @@ int run_tui(Options options) {
             else if (cursor == base + 2) options.homePath = edit_value("Home path", options.homePath);
             else if (cursor == base + 3) options.moveHome = !options.moveHome;
             else if (cursor == base + 4) options.shell = edit_value("Login shell", options.shell);
-            else if (cursor == base + 5) options.groups = edit_value("Groups CSV", options.groups);
+            else if (cursor == base + 5) options.groups = select_groups(options.groups);
             else if (cursor == base + 6) options.appendGroups = !options.appendGroups;
             else if (cursor == base + 7) options.lockPassword = !options.lockPassword;
             else if (cursor == base + 8) options.unlockPassword = !options.unlockPassword;
