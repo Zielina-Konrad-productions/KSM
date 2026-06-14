@@ -595,21 +595,21 @@ Element render_progress(const ProgressState& state) {
     Elements stepRows;
     for (int i = 0; i < stepCount; ++i) {
         std::string mark = " ";
-        Color color = Color::Blue;
+        Color stepColor = Color::Blue;
         if (i < state.currentStep || state.done) {
             mark = "x";
-            color = Color::Green;
+            stepColor = Color::Green;
         } else if (i == state.currentStep) {
             mark = ">";
-            color = Color::Cyan;
+            stepColor = Color::Cyan;
         }
 
         auto label = text(state.steps[i]);
-        if (i <= state.currentStep || state.done) label = label | color(color);
+        if (i <= state.currentStep || state.done) label = label | color(stepColor);
         else label = label | dim;
 
         stepRows.push_back(hbox({
-            text("[" + mark + "] ") | color(color) | bold,
+            text("[" + mark + "] ") | color(stepColor) | bold,
             label
         }));
     }
