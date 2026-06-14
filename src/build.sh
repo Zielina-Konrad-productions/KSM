@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eu
 
 CXX_CMD="${CXX:-g++}"
 TARGET="${KSM_TARGET:-/opt/KSM}"
