@@ -397,6 +397,24 @@ CommandResult run_command(std::vector<std::string> args, bool asRoot = false, co
     return {1, output};
 }
 
+bool update_output_completed(const std::string& output) {
+    const std::string value = lower(output);
+    return value.find("update completed") != std::string::npos ||
+           value.find("updated successfully") != std::string::npos;
+}
+
+bool update_output_up_to_date(const std::string& output) {
+    return lower(output).find("already on newest version") != std::string::npos;
+}
+
+std::string read_file_text(const fs::path& path) {
+    std::ifstream file(path);
+    if (!file) return "";
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    return buffer.str();
+}
+
 CommandResult run_command_with_progress(std::vector<std::string> args, bool asRoot = false) {
     if (asRoot && geteuid() != 0) {
         args.insert(args.begin(), "sudo");
@@ -480,6 +498,11 @@ CommandResult run_command_with_progress(std::vector<std::string> args, bool asRo
 
         {
             std::lock_guard<std::mutex> lock(state.mutex);
+            const std::string logText = read_file_text("/tmp/kupgr.log");
+            const std::string combinedOutput = state.output + "\n" + logText;
+            if (update_output_up_to_date(combinedOutput)) state.upToDate = true;
+            if (update_output_completed(combinedOutput)) state.completed = true;
+
             const bool logicalSuccess = code == 0 || state.completed || state.upToDate;
             state.exitCode = logicalSuccess ? 0 : code;
             state.done = true;
@@ -1968,8 +1991,13 @@ void execute_upgrade(NativePanel& panel) {
     if (row_checked(panel, "force")) args.push_back("-f");
     if (row_checked(panel, "repo")) args.push_back("--repo-snapshot");
     const CommandResult result = run_command_with_progress(args, true);
-    if (result.code == 0) {
-        const bool upToDate = result.output.find("Already on newest version") != std::string::npos;
+    const std::string logText = read_file_text("/tmp/kupgr.log");
+    const std::string combinedOutput = result.output + "\n" + logText;
+    const bool upToDate = update_output_up_to_date(combinedOutput);
+    const bool completed = update_output_completed(combinedOutput);
+    const bool success = result.code == 0 || upToDate || completed;
+
+    if (success) {
         panel.noticeTitle = upToDate ? "ALREADY UP TO DATE" : "UPDATE COMPLETED";
         panel.noticeBody = upToDate
             ? "KSM is already on the newest version. Public command: sudo ksm."
