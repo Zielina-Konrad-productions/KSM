@@ -366,7 +366,8 @@ bool parse_page_arg(const std::string& arg, int& page) {
 
 int edit_config() {
     if (geteuid() != 0) {
-        std::cerr << RED << "Run with sudo!" << RESET << '\n';
+        execlp("sudo", "sudo", "khome", "--edit-config", nullptr);
+        std::cerr << RED << "ERROR:" << RESET << " could not start sudo: " << std::strerror(errno) << '\n';
         return 1;
     }
 
