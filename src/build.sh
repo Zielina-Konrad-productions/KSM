@@ -38,14 +38,9 @@ cd "$SRC_DIR"
 
 printf "%b---------------------------Building KSM---------------------------%b\n" "$BLUE" "$RESET"
 
-for file in *.cpp; do
-    [ -e "$file" ] || continue
-
+build_one() {
+    file="$1"
     name="${file%.cpp}"
-    if [ "$name" = "kinstall" ]; then
-        warn "Skipping installer-only source: $file"
-        continue
-    fi
 
     case "$name" in
         KSM) out_name="ksm" ;;
@@ -58,7 +53,34 @@ for file in *.cpp; do
     mv -f "$out" "$BIN_DIR/$out_name"
     chmod +x "$BIN_DIR/$out_name"
     ok "Installed $out_name"
+}
+
+pids=""
+
+for file in *.cpp; do
+    [ -e "$file" ] || continue
+
+    name="${file%.cpp}"
+    if [ "$name" = "kinstall" ]; then
+        warn "Skipping installer-only source: $file"
+        continue
+    fi
+
+    build_one "$file" &
+    pids="$pids $!"
 done
+
+failed=0
+for pid in $pids; do
+    if ! wait "$pid"; then
+        failed=1
+    fi
+done
+
+if [ "$failed" -ne 0 ]; then
+    fail "One or more programs failed to build."
+    exit 1
+fi
 
 printf "%b-----------------------------DONE---------------------------------%b\n" "$GREEN" "$RESET"
 ok "Build completed successfully."
