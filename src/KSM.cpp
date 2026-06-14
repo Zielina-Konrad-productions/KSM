@@ -19,6 +19,11 @@ void show_help() {
     std::cout << "  " << CYAN << "home" << RESET << "       Full KSM home pages\n";
     std::cout << "  " << CYAN << "upgrade" << RESET << "    Update KSM\n";
     std::cout << "  " << CYAN << "uninstall" << RESET << "  Uninstall KSM\n";
+    std::cout << "  " << CYAN << "sysinfo" << RESET << "    System dashboard\n";
+    std::cout << "  " << CYAN << "serv" << RESET << "       Manage systemd services\n";
+    std::cout << "  " << CYAN << "perm" << RESET << "       Manage file permissions\n";
+    std::cout << "  " << CYAN << "ssh" << RESET << "        Configure SSH daemon\n";
+    std::cout << "  " << CYAN << "firewall" << RESET << "   Manage firewall rules\n";
     std::cout << "  " << CYAN << "useradd" << RESET << "    Add users\n";
     std::cout << "  " << CYAN << "usermod" << RESET << "    Modify users\n";
     std::cout << "  " << CYAN << "userdel" << RESET << "    Delete users\n";
@@ -143,6 +148,26 @@ int main(int argc, char* argv[]) {
 
         if (cmd == "uninstall") {
             return run_installed_tool("kuninstall", forwarded);
+        }
+
+        if (cmd == "sysinfo" || cmd == "info") {
+            return run_installed_tool("ksysinfo", forwarded);
+        }
+
+        if (cmd == "serv" || cmd == "service" || cmd == "services") {
+            return run_installed_tool("kserv", forwarded);
+        }
+
+        if (cmd == "perm" || cmd == "permissions") {
+            return run_installed_tool("kperm", forwarded);
+        }
+
+        if (cmd == "ssh") {
+            return run_installed_tool("kssh", forwarded);
+        }
+
+        if (cmd == "firewall" || cmd == "fw") {
+            return run_installed_tool("kfirewall", forwarded);
         }
 
         std::cerr << RED << "unknown command:" << RESET << " " << cmd << '\n';

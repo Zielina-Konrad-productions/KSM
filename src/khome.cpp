@@ -175,6 +175,16 @@ void page2() {
               << DIM << " | alt: ksm upgrade" << RESET << '\n';
     std::cout << "  " << CYAN << "kuninstall" << RESET << " - Uninstaller"
               << DIM << " | alt: ksm uninstall" << RESET << '\n';
+    std::cout << "  " << CYAN << "ksysinfo" << RESET << "   - System dashboard"
+              << DIM << " | alt: ksm sysinfo" << RESET << '\n';
+    std::cout << "  " << CYAN << "kserv" << RESET << "      - Systemd service manager"
+              << DIM << " | alt: ksm serv" << RESET << '\n';
+    std::cout << "  " << CYAN << "kperm" << RESET << "      - File permission manager"
+              << DIM << " | alt: ksm perm" << RESET << '\n';
+    std::cout << "  " << CYAN << "kssh" << RESET << "       - SSH daemon config"
+              << DIM << " | alt: ksm ssh" << RESET << '\n';
+    std::cout << "  " << CYAN << "kfirewall" << RESET << "  - Firewall helper"
+              << DIM << " | alt: ksm firewall" << RESET << '\n';
     std::cout << "  " << CYAN << "kuseradd" << RESET << "    - User creator"
               << DIM << " | alt: ksm useradd" << RESET << '\n';
     std::cout << "  " << CYAN << "kusermod" << RESET << "    - User modifier"
@@ -195,6 +205,7 @@ void page2() {
     std::cout << "  " << CYAN << "khome --all" << RESET << "    - Show all pages\n";
     std::cout << "  " << CYAN << "kupgr -ex" << RESET << "     - Use latest experimental prerelease\n";
     std::cout << "  " << CYAN << "sudo knetcfg" << RESET << "  - Configure a network interface\n";
+    std::cout << "  " << CYAN << "sudo kssh" << RESET << "    - Configure SSH daemon\n";
 }
 
 void page_unavailable(int page) {

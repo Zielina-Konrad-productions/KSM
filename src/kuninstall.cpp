@@ -210,7 +210,7 @@ bool confirm_uninstall(const Options& options) {
 }
 
 std::vector<std::string> commands() {
-    return {"ksm", "khome", "kupgr", "kuninstall", "kgroupadd", "kgroupmod", "kgroupdel", "kuseradd", "kusermod", "kuserdel", "knetcfg"};
+    return {"ksm", "khome", "kupgr", "kuninstall", "ksysinfo", "kserv", "kperm", "kssh", "kfirewall", "kgroupadd", "kgroupmod", "kgroupdel", "kuseradd", "kusermod", "kuserdel", "knetcfg"};
 }
 
 bool remove_command_links() {

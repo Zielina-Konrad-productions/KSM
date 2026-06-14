@@ -12,6 +12,11 @@ Kastiusz System Manager, or **KSM**, is a terminal toolkit for Linux system mana
 - `khome` built-in help pages
 - `kupgr` interactive updater from GitHub Releases
 - `kuninstall` interactive uninstaller
+- `ksysinfo` interactive system information dashboard
+- `kserv` interactive systemd service manager
+- `kperm` interactive permission and owner manager
+- `kssh` interactive SSH daemon configuration helper
+- `kfirewall` interactive ufw/firewalld helper
 - `kuseradd` interactive user creator
 - `kusermod` interactive user modifier
 - `kuserdel` interactive user remover
@@ -61,6 +66,11 @@ khome
 khome -ui
 kupgr
 kuninstall
+ksysinfo
+kserv
+kperm
+kssh
+kfirewall
 kuseradd
 kusermod
 kuserdel
@@ -79,6 +89,11 @@ ksm home -ui
 ksm upgrade
 ksm upgrade -ex
 ksm uninstall
+ksm sysinfo
+ksm serv
+ksm perm
+ksm ssh
+ksm firewall
 ksm useradd
 ksm usermod
 ksm userdel
@@ -118,6 +133,11 @@ src/
   khome.cpp
   kupgr.cpp
   kuninstall.cpp
+  ksysinfo.cpp
+  kserv.cpp
+  kperm.cpp
+  kssh.cpp
+  kfirewall.cpp
   kuseradd.cpp
   kusermod.cpp
   kuserdel.cpp
