@@ -206,21 +206,21 @@ std::string detect_package_manager() {
 std::vector<std::string> dependencies_for(const std::string& pm) {
     if (pm == "apt") {
         return {
-            "g++", "sudo", "coreutils", "nano", "passwd",
+            "g++", "sudo", "coreutils", "curl", "nano", "passwd",
             "systemd", "systemd-resolved", "iproute2", "procps", "util-linux",
             "openssh-server", "ufw", "pkg-config", "libftxui-dev"
         };
     }
     if (pm == "zypper") {
         return {
-            "gcc-c++", "sudo", "coreutils", "nano", "shadow",
+            "gcc-c++", "sudo", "coreutils", "curl", "nano", "shadow",
             "systemd", "iproute2", "procps", "util-linux",
             "openssh", "firewalld", "pkgconf-pkg-config", "ftxui-devel"
         };
     }
     if (pm == "dnf") {
         return {
-            "gcc-c++", "sudo", "coreutils", "nano", "shadow-utils",
+            "gcc-c++", "sudo", "coreutils", "curl", "nano", "shadow-utils",
             "systemd", "iproute", "procps-ng", "util-linux",
             "openssh-server", "firewalld", "pkgconf-pkg-config", "ftxui-devel"
         };

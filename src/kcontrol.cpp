@@ -39,6 +39,8 @@ enum class ModuleKind {
     Network,
     SSH,
     Firewall,
+    ExtensionInstall,
+    ZpmExtension,
     Uninstall
 };
 
@@ -151,6 +153,7 @@ struct ProgressState {
 
 void update_progress_from_line(ProgressState& state, const std::string& line);
 Element render_progress(const ProgressState& state);
+bool command_exists(const std::string& command);
 
 void version() {
     std::cout << BLUE << "kcontrol component version: v" << ksm_version::version() << RESET << '\n';
@@ -170,7 +173,7 @@ void help() {
 }
 
 std::vector<Category> categories() {
-    return {
+    std::vector<Category> items = {
         {
             "Overview",
             {
@@ -212,6 +215,24 @@ std::vector<Category> categories() {
             }
         }
     };
+
+    if (command_exists("zpm")) {
+        items.push_back({
+            "ZPM",
+            {
+                {"Packages", "zpm", {}, "Use ZPM package functions inside KSM", true, ModuleKind::ZpmExtension}
+            }
+        });
+    } else {
+        items.push_back({
+            "Extensions",
+            {
+                {"Install ZPM", "zpm", {}, "Install ZPM extension from GitHub", true, ModuleKind::ExtensionInstall}
+            }
+        });
+    }
+
+    return items;
 }
 
 std::string trim(const std::string& value) {
@@ -1169,6 +1190,32 @@ NativePanel make_native_panel(const Module& module) {
             {RowType::Action, "apply_firewall", "Apply rule", "", {}, false, true}
         };
         break;
+    case ModuleKind::ExtensionInstall:
+        panel.rows = {
+            {RowType::Info, "status", "ZPM status", command_exists("zpm") ? "installed" : "not installed"},
+            {RowType::Action, "install_zpm", "Install ZPM extension", "", {}, false, true}
+        };
+        panel.detailLines = {
+            "Source: github.com/Zielina-Konrad-productions/ZPM",
+            "After install, KSM adds a separate ZPM tab.",
+            "Install uses the repository INSTALL.sh through curl."
+        };
+        panel.message = command_exists("zpm")
+            ? "ZPM extension detected. Reopen menu to use the ZPM tab."
+            : "ZPM is not installed yet. Use Install ZPM extension.";
+        break;
+    case ModuleKind::ZpmExtension:
+        panel.rows = {
+            {RowType::Choice, "function", "Function", "install", {"install", "remove", "search", "info", "update", "upgrade"}},
+            {RowType::Text, "package", "Package", "", {}, false, false, "Used by install/remove/search/info"},
+            {RowType::Action, "run_zpm", "Run ZPM function", "", {}, false, true}
+        };
+        panel.detailLines = {
+            "ZPM functions are exposed here as part of the KSM GUI.",
+            "Package is required for install, remove, search and info."
+        };
+        panel.message = "ZPM extension ready.";
+        break;
     case ModuleKind::Uninstall:
         panel.rows = {
             {RowType::Bool, "links", "Remove command links", "", {}, true, false},
@@ -2018,6 +2065,80 @@ void execute_firewall(NativePanel& panel, const std::string& actionId) {
     panel.message = code == 0 ? "Firewall rule applied." : "Firewall command failed.";
 }
 
+void refresh_zpm_status(NativePanel& panel) {
+    set_row_value(panel, "status", command_exists("zpm") ? "installed" : "not installed");
+}
+
+void execute_install_zpm(NativePanel& panel) {
+    if (!ensure_root_auth(panel.message)) return;
+    if (!command_exists("curl")) {
+        panel.message = "Missing curl. Install curl first.";
+        panel.noticeTitle = "ZPM INSTALL FAILED";
+        panel.noticeBody = "curl is required to download the ZPM installer.";
+        panel.noticeOk = false;
+        return;
+    }
+
+    const std::string script = "/tmp/ksm-zpm-install.sh";
+    CommandResult result = run_command({
+        "curl",
+        "-fsSL",
+        "https://raw.githubusercontent.com/Zielina-Konrad-productions/ZPM/main/INSTALL.sh",
+        "-o",
+        script
+    });
+    if (result.code == 0) result = run_command({"sh", script}, true);
+
+    refresh_zpm_status(panel);
+    panel.detailLines = {
+        "ZPM installer output:",
+        result.output.empty() ? "(no output)" : result.output
+    };
+
+    if (result.code == 0) {
+        panel.noticeTitle = "ZPM INSTALLED";
+        panel.noticeBody = "ZPM extension installed. Its functions are available from this KSM panel.";
+        panel.noticeOk = true;
+        panel.message = "ZPM extension installed.";
+    } else {
+        panel.noticeTitle = "ZPM INSTALL FAILED";
+        panel.noticeBody = "Installer exited with code " + std::to_string(result.code) + ".";
+        panel.noticeOk = false;
+        panel.message = "ZPM install failed.";
+    }
+}
+
+void execute_zpm_function(NativePanel& panel) {
+    if (!ensure_root_auth(panel.message)) return;
+    if (!command_exists("zpm")) {
+        panel.message = "ZPM is not installed.";
+        return;
+    }
+
+    const std::string function = row_value(panel, "function");
+    const std::string package = trim(row_value(panel, "package"));
+    std::vector<std::string> args = {"zpm", function};
+
+    if (function == "install" || function == "remove" || function == "search" || function == "info") {
+        if (package.empty()) {
+            panel.message = "Package is required for " + function + ".";
+            return;
+        }
+        args.push_back(package);
+    }
+
+    const bool needsRoot = function == "install" || function == "remove" || function == "update" || function == "upgrade";
+    const CommandResult result = run_command(args, needsRoot);
+    refresh_zpm_status(panel);
+    panel.detailLines = {
+        "ZPM function: " + function + (package.empty() ? "" : " " + package),
+        result.output.empty() ? "(no output)" : result.output
+    };
+    panel.message = result.code == 0
+        ? "ZPM function completed."
+        : "ZPM function failed with code " + std::to_string(result.code) + ".";
+}
+
 void execute_upgrade(NativePanel& panel) {
     if (!ensure_root_auth(panel.message)) return;
     std::vector<std::string> args = {"/opt/KSM/bin/kupgr"};
@@ -2099,6 +2220,8 @@ void execute_panel_action(NativePanel& panel, const std::string& id) {
     else if (panel.kind == ModuleKind::Network && id == "apply_network") execute_network(panel);
     else if (panel.kind == ModuleKind::SSH && id == "apply_ssh") execute_ssh(panel);
     else if (panel.kind == ModuleKind::Firewall) execute_firewall(panel, id);
+    else if (panel.kind == ModuleKind::ExtensionInstall && id == "install_zpm") execute_install_zpm(panel);
+    else if (panel.kind == ModuleKind::ZpmExtension && id == "run_zpm") execute_zpm_function(panel);
     else if (panel.kind == ModuleKind::Upgrade && id == "run_upgrade") execute_upgrade(panel);
     else if (panel.kind == ModuleKind::Uninstall && id == "run_uninstall") execute_uninstall(panel);
     else panel.message = "Action not implemented.";
@@ -2205,7 +2328,7 @@ void handle_row_enter(NativePanel& panel, TextEdit& edit, PickerOverlay& picker,
 }
 
 int run_tui() {
-    const auto items = categories();
+    auto items = categories();
     int categoryIndex = 0;
     int moduleIndex = 0;
     std::string message;
@@ -2419,6 +2542,10 @@ int run_tui() {
         screen.Loop(root);
         if (pending) {
             execute_panel_action(panel, pendingAction);
+            items = categories();
+            if (categoryIndex >= static_cast<int>(items.size())) categoryIndex = static_cast<int>(items.size()) - 1;
+            if (categoryIndex < 0) categoryIndex = 0;
+            clamp_module(items, categoryIndex, moduleIndex);
         }
     }
 
