@@ -1,6 +1,8 @@
 #include "main.h"
 
 #include <cerrno>
+#include <atomic>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -10,9 +12,11 @@
 #include <ftxui/component/screen_interactive.hpp>
 #include <ftxui/dom/elements.hpp>
 #include <grp.h>
+#include <mutex>
 #include <pwd.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <thread>
 #include <unistd.h>
 
 namespace {
@@ -85,6 +89,9 @@ struct NativePanel {
     std::string selectedKey;
     std::string message;
     std::string armedAction;
+    std::string noticeTitle;
+    std::string noticeBody;
+    bool noticeOk = false;
     std::vector<Row> rows;
     std::vector<ListItem> list;
     std::vector<std::string> detailLines;
@@ -116,6 +123,34 @@ struct CommandResult {
     std::string output;
 };
 
+struct ProgressState {
+    std::mutex mutex;
+    std::vector<std::string> steps = {
+        "Authorize",
+        "Check tools",
+        "Fetch release",
+        "Download",
+        "Extract",
+        "Write version",
+        "Build",
+        "Stage install",
+        "Activate",
+        "Finish"
+    };
+    std::vector<std::string> logLines;
+    int currentStep = 0;
+    bool done = false;
+    bool ok = false;
+    int exitCode = 1;
+    bool upToDate = false;
+    std::string title = "KSM UPDATE";
+    std::string status = "Preparing update...";
+    std::string output;
+};
+
+void update_progress_from_line(ProgressState& state, const std::string& line);
+Element render_progress(const ProgressState& state);
+
 void version() {
     std::cout << BLUE << "kcontrol component version: v" << ksm_version::version() << RESET << '\n';
     std::cout << "Kastiusz System Manager\n";
@@ -123,8 +158,8 @@ void version() {
 }
 
 void help() {
-    std::cout << BLUE << "Usage: " << RESET << "kcontrol [options]\n";
-    std::cout << "FTXUI based KSM control center.\n\n";
+    std::cout << BLUE << "Usage: " << RESET << "sudo ksm\n";
+    std::cout << "Internal FTXUI control center helper.\n\n";
     std::cout << BLUE << "Controls:" << RESET << '\n';
     std::cout << "  Tab/Left/Right Switch focus between panels\n";
     std::cout << "  Up/Down        Move in focused panel\n";
@@ -361,6 +396,125 @@ CommandResult run_command(std::vector<std::string> args, bool asRoot = false, co
     return {1, output};
 }
 
+CommandResult run_command_with_progress(std::vector<std::string> args, bool asRoot = false) {
+    if (asRoot && geteuid() != 0) {
+        args.insert(args.begin(), "sudo");
+    }
+
+    ProgressState state;
+    auto screen = ScreenInteractive::Fullscreen();
+    auto exitLoop = screen.ExitLoopClosure();
+
+    std::thread worker([&] {
+        auto finish = [&](int code, const std::string& status) {
+            std::lock_guard<std::mutex> lock(state.mutex);
+            state.exitCode = code;
+            state.done = true;
+            state.ok = code == 0;
+            state.currentStep = state.ok ? static_cast<int>(state.steps.size()) - 1 : state.currentStep;
+            state.status = status;
+            screen.PostEvent(Event::Custom);
+        };
+
+        int outPipe[2] = {-1, -1};
+        if (pipe(outPipe) != 0) {
+            finish(1, "pipe failed");
+            return;
+        }
+
+        const pid_t pid = fork();
+        if (pid < 0) {
+            close(outPipe[0]);
+            close(outPipe[1]);
+            finish(1, std::strerror(errno));
+            return;
+        }
+
+        if (pid == 0) {
+            dup2(outPipe[1], STDOUT_FILENO);
+            dup2(outPipe[1], STDERR_FILENO);
+            close(outPipe[0]);
+            close(outPipe[1]);
+
+            std::vector<char*> argv;
+            for (auto& arg : args) argv.push_back(const_cast<char*>(arg.c_str()));
+            argv.push_back(nullptr);
+            execvp(argv[0], argv.data());
+            _exit(127);
+        }
+
+        close(outPipe[1]);
+
+        std::string pendingLine;
+        char buffer[512];
+        ssize_t count = 0;
+        while ((count = read(outPipe[0], buffer, sizeof(buffer))) > 0) {
+            std::string chunk(buffer, static_cast<size_t>(count));
+            for (char ch : chunk) {
+                if (ch == '\r') continue;
+                if (ch == '\n') {
+                    std::lock_guard<std::mutex> lock(state.mutex);
+                    update_progress_from_line(state, pendingLine);
+                    pendingLine.clear();
+                    screen.PostEvent(Event::Custom);
+                } else {
+                    pendingLine += ch;
+                }
+            }
+        }
+        close(outPipe[0]);
+
+        if (!pendingLine.empty()) {
+            std::lock_guard<std::mutex> lock(state.mutex);
+            update_progress_from_line(state, pendingLine);
+            screen.PostEvent(Event::Custom);
+        }
+
+        int status = 0;
+        int code = 1;
+        if (waitpid(pid, &status, 0) == 0) {
+            if (WIFEXITED(status)) code = WEXITSTATUS(status);
+            else if (WIFSIGNALED(status)) code = 128 + WTERMSIG(status);
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(state.mutex);
+            state.exitCode = code;
+            state.done = true;
+            state.ok = code == 0;
+            if (state.ok) {
+                state.currentStep = static_cast<int>(state.steps.size()) - 1;
+                state.status = state.upToDate ? "Already on newest version." : "Update completed.";
+            } else {
+                state.status = "Update failed. Check /tmp/kupgr.log.";
+            }
+        }
+        screen.PostEvent(Event::Custom);
+    });
+
+    auto root = Renderer([&] {
+        std::lock_guard<std::mutex> lock(state.mutex);
+        return render_progress(state);
+    });
+
+    root = CatchEvent(root, [&](Event event) {
+        std::lock_guard<std::mutex> lock(state.mutex);
+        if (!state.done) return true;
+        if (event == Event::Return || event == Event::Escape ||
+            event == Event::Character("q") || event == Event::Character("Q")) {
+            exitLoop();
+            return true;
+        }
+        return true;
+    });
+
+    screen.Loop(root);
+    if (worker.joinable()) worker.join();
+
+    std::lock_guard<std::mutex> lock(state.mutex);
+    return {state.exitCode, state.output};
+}
+
 std::string shell_output(const std::string& command) {
     std::string output;
     FILE* pipe = popen(command.c_str(), "r");
@@ -373,6 +527,131 @@ std::string shell_output(const std::string& command) {
 
 bool command_exists(const std::string& command) {
     return run_command({"sh", "-c", "command -v " + command + " >/dev/null 2>&1"}).code == 0;
+}
+
+std::string strip_ansi(const std::string& value) {
+    std::string clean;
+    bool escape = false;
+    for (char ch : value) {
+        if (!escape && ch == '\033') {
+            escape = true;
+            continue;
+        }
+        if (escape) {
+            if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z')) {
+                escape = false;
+            }
+            continue;
+        }
+        clean += ch;
+    }
+    return clean;
+}
+
+void push_progress_log(ProgressState& state, const std::string& line) {
+    if (line.empty()) return;
+    state.logLines.push_back(line);
+    if (state.logLines.size() > 8) state.logLines.erase(state.logLines.begin());
+}
+
+void update_progress_from_line(ProgressState& state, const std::string& line) {
+    const std::string cleanLine = strip_ansi(line);
+    state.output += cleanLine + "\n";
+    push_progress_log(state, cleanLine);
+    state.status = cleanLine;
+
+    const std::string lowerLine = lower(cleanLine);
+    auto step = [&](int index, const std::string& status) {
+        state.currentStep = std::max(state.currentStep, index);
+        state.status = status;
+    };
+
+    if (lowerLine.find("checking required tools") != std::string::npos) step(1, "Checking required tools...");
+    else if (lowerLine.find("fetching github release metadata") != std::string::npos) step(2, "Fetching release metadata...");
+    else if (lowerLine.find("already on newest version") != std::string::npos) {
+        state.upToDate = true;
+        step(9, "Already on newest version.");
+    } else if (lowerLine.find("downloading ksm") != std::string::npos) step(3, "Downloading archive...");
+    else if (lowerLine.find("extracting source archive") != std::string::npos) step(4, "Extracting source...");
+    else if (lowerLine.find("writing version.txt") != std::string::npos) step(5, "Writing VERSION.txt...");
+    else if (lowerLine.find("building c++ programs") != std::string::npos) step(6, "Building C++ programs...");
+    else if (lowerLine.find("preparing new installation tree") != std::string::npos) step(7, "Preparing installation tree...");
+    else if (lowerLine.find("activating new ksm installation") != std::string::npos) step(8, "Activating installation...");
+    else if (lowerLine.find("update completed") != std::string::npos ||
+             lowerLine.find("updated successfully") != std::string::npos) {
+        step(9, "Update completed.");
+    } else if (lowerLine.find("failed") != std::string::npos ||
+               lowerLine.find("[x]") != std::string::npos) {
+        state.status = "Update failed.";
+    }
+}
+
+Element render_progress(const ProgressState& state) {
+    const int stepCount = static_cast<int>(state.steps.size());
+    const float progress = stepCount <= 1
+        ? 1.0f
+        : static_cast<float>(state.currentStep) / static_cast<float>(stepCount - 1);
+
+    Elements stepRows;
+    for (int i = 0; i < stepCount; ++i) {
+        std::string mark = " ";
+        Color color = Color::Blue;
+        if (i < state.currentStep || state.done) {
+            mark = "x";
+            color = Color::Green;
+        } else if (i == state.currentStep) {
+            mark = ">";
+            color = Color::Cyan;
+        }
+
+        auto label = text(state.steps[i]);
+        if (i <= state.currentStep || state.done) label = label | color(color);
+        else label = label | dim;
+
+        stepRows.push_back(hbox({
+            text("[" + mark + "] ") | color(color) | bold,
+            label
+        }));
+    }
+
+    Elements logs;
+    for (const auto& line : state.logLines) {
+        logs.push_back(text(fit_text(line, 86)) | dim);
+    }
+    if (logs.empty()) logs.push_back(text("Waiting for updater output...") | dim);
+
+    auto titleColor = state.done ? (state.ok ? Color::Green : Color::Red) : Color::Cyan;
+    Element finalText;
+    if (state.done) {
+        finalText = text(state.ok ? (state.upToDate ? "ALREADY UP TO DATE" : "UPDATE COMPLETED") : "UPDATE FAILED") |
+            bold | color(titleColor) | hcenter;
+    } else {
+        finalText = text(state.title) | bold | color(Color::Cyan) | hcenter;
+    }
+
+    return vbox({
+        finalText,
+        separator(),
+        hbox({
+            vbox({
+                text(" Steps ") | bold | color(Color::Cyan),
+                vbox(std::move(stepRows)) | flex
+            }) | borderStyled(Color::Blue) | size(WIDTH, EQUAL, 28),
+            text("  "),
+            vbox({
+                text(" Progress ") | bold | color(Color::Cyan),
+                gauge(progress) | color(state.done && !state.ok ? Color::Red : Color::Green),
+                text(std::to_string(std::min(100, static_cast<int>(progress * 100.0f))) + "%") | hcenter,
+                separator(),
+                paragraph(state.status) | color(state.done ? titleColor : Color::Yellow),
+                separator(),
+                text(" Logs ") | bold | color(Color::Cyan),
+                vbox(std::move(logs)) | flex
+            }) | borderStyled(Color::Blue) | flex
+        }) | flex,
+        separator(),
+        text(state.done ? "Press Enter to return." : "Update is running. Please wait.") | dim | hcenter
+    }) | borderStyled(titleColor);
 }
 
 bool ensure_root_auth(std::string& message) {
@@ -679,8 +958,8 @@ NativePanel make_native_panel(const Module& module) {
         };
         panel.detailLines = {
             "Kastiusz System Manager is controlled from this FTXUI panel.",
-            "Direct commands still exist, but kcontrol keeps the visual workflow in one place.",
-            "Use ksm control, kcontrol, or ksm yast to open this center."
+            "Public entrypoint: sudo ksm.",
+            "Internal helpers stay in /opt/KSM/bin and are not public commands."
         };
         break;
     case ModuleKind::SysInfo:
@@ -967,6 +1246,17 @@ Element picker_overlay(const PickerOverlay& picker) {
     }) | borderStyled(Color::Cyan) | size(WIDTH, LESS_THAN, 78) | size(HEIGHT, LESS_THAN, 22) | center;
 }
 
+Element notice_overlay(const NativePanel& panel) {
+    const auto accent = panel.noticeOk ? Color::Green : Color::Red;
+    return vbox({
+        text(panel.noticeTitle) | bold | color(accent) | hcenter,
+        separator(),
+        paragraph(panel.noticeBody) | hcenter,
+        separator(),
+        text("Press Enter to return to the panel.") | dim | hcenter
+    }) | borderStyled(accent) | size(WIDTH, LESS_THAN, 64) | center;
+}
+
 Element render_menu(
     const std::vector<Category>& items,
     int categoryIndex,
@@ -1004,11 +1294,11 @@ Element render_menu(
                 color(module.needsRoot ? Color::Yellow : Color::Green)
         }),
         separator(),
-        hbox({text("Command     ") | dim, text(command_text(module)) | color(Color::Cyan)}),
+        hbox({text("Panel path  ") | dim, text("sudo ksm > " + category.title + " > " + module.title) | color(Color::Cyan)}),
         hbox({text("Description ") | dim, paragraph(module.description) | flex}),
         hbox({text("Category    ") | dim, text(category.title)}),
         separator(),
-        paragraph("Enter opens the native kcontrol panel for this function. The old standalone screen is not launched from here.") | dim
+        paragraph("Enter opens the native KSM panel for this function. Everything is reached through sudo ksm.") | dim
     }) | borderStyled(Color::Blue);
 
     auto status = message.empty() ? text("Ready") | dim : text(message) | color(Color::Yellow);
@@ -1114,6 +1404,7 @@ Element render_native_panel(
     }) | borderStyled(Color::Cyan);
 
     if (showHelp) document = dbox({document, help_overlay()});
+    if (!panel.noticeTitle.empty()) document = dbox({document, notice_overlay(panel)});
     if (picker.active) document = dbox({document, picker_overlay(picker)});
     if (edit.active) document = dbox({document, edit_overlay(edit)});
     return document;
@@ -1161,10 +1452,9 @@ void handle_local_action(NativePanel& panel, const std::string& id) {
         panel.detailLines.clear();
         if (page == "Commands") {
             panel.detailLines = {
-                "Primary tools: kcontrol, khome, kuseradd, kusermod, kuserdel.",
-                "Group tools: kgroupadd, kgroupmod, kgroupdel.",
-                "System tools: knetcfg, kserv, kperm, ksysinfo, kssh, kfirewall.",
-                "Wrapper: ksm control, ksm home, ksm useradd, ksm groupadd, ksm firewall."
+                "Public command: sudo ksm.",
+                "Users, groups, network, services, SSH, firewall and update live in this panel.",
+                "Legacy helper binaries are internal only."
             };
         } else if (page == "Panel controls") {
             panel.detailLines = {
@@ -1175,7 +1465,7 @@ void handle_local_action(NativePanel& panel, const std::string& id) {
         } else {
             panel.detailLines = {
                 "Kastiusz System Manager is controlled from this FTXUI panel.",
-                "Direct commands still exist for shell usage.",
+                "Public entrypoint: sudo ksm.",
                 "The panel path gives every function a unified YaST-style screen."
             };
         }
@@ -1674,8 +1964,25 @@ void execute_upgrade(NativePanel& panel) {
     if (row_checked(panel, "experimental") || row_checked(panel, "repo")) args.push_back("-ex");
     if (row_checked(panel, "force")) args.push_back("-f");
     if (row_checked(panel, "repo")) args.push_back("--repo-snapshot");
-    const CommandResult result = run_command(args, true);
-    panel.message = result.code == 0 ? "Upgrade command completed." : "Upgrade exited with code " + std::to_string(result.code) + ".";
+    const CommandResult result = run_command_with_progress(args, true);
+    if (result.code == 0) {
+        const bool upToDate = result.output.find("Already on newest version") != std::string::npos;
+        panel.noticeTitle = upToDate ? "ALREADY UP TO DATE" : "UPDATE COMPLETED";
+        panel.noticeBody = upToDate
+            ? "KSM is already on the newest version. Public command: sudo ksm."
+            : "KSM update completed successfully. Public command: sudo ksm.";
+        panel.noticeOk = true;
+        panel.message = upToDate ? "Already up to date." : "Update completed.";
+        panel.detailLines = {
+            upToDate ? "KSM is already on the newest version." : "KSM update completed successfully.",
+            "Public command: sudo ksm."
+        };
+    } else {
+        panel.noticeTitle = "UPDATE FAILED";
+        panel.noticeBody = "Updater exited with code " + std::to_string(result.code) + ". Check /tmp/kupgr.log.";
+        panel.noticeOk = false;
+        panel.message = "Upgrade failed.";
+    }
 }
 
 void execute_uninstall(NativePanel& panel) {
@@ -1858,6 +2165,17 @@ int run_tui() {
         });
 
         root = CatchEvent(root, [&](Event event) {
+            if (!panel.noticeTitle.empty()) {
+                if (event == Event::Return || event == Event::Escape ||
+                    event == Event::Character("q") || event == Event::Character("Q")) {
+                    panel.noticeTitle.clear();
+                    panel.noticeBody.clear();
+                    panel.noticeOk = false;
+                    return true;
+                }
+                return true;
+            }
+
             if (edit.active) {
                 if (event == Event::Escape) {
                     edit = {};
@@ -2053,7 +2371,7 @@ int main(int argc, char* argv[]) {
             return 0;
         }
         std::cerr << RED << "unknown option:" << RESET << " " << arg << '\n';
-        std::cerr << "run 'kcontrol --help' to list options.\n";
+        std::cerr << "run 'ksm --help' to list options.\n";
         return 1;
     }
     return run_tui();

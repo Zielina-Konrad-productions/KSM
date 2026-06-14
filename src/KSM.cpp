@@ -25,6 +25,7 @@ void show_help() {
 std::string control_path() {
     const std::string installed = "/opt/KSM/bin/kcontrol";
     if (access(installed.c_str(), X_OK) == 0) return installed;
+    if (access("./kcontrol", X_OK) == 0) return "./kcontrol";
     return "kcontrol";
 }
 

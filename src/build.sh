@@ -34,6 +34,7 @@ if [ "$GCC_VERSION" -lt 10 ]; then
 fi
 
 mkdir -p "$BIN_DIR"
+rm -f "$BIN_DIR"/*
 cd "$SRC_DIR"
 
 printf "%b---------------------------Building KSM---------------------------%b\n" "$BLUE" "$RESET"
@@ -56,9 +57,9 @@ build_one() {
         if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists ftxui; then
             ftxui_flags="$(pkg-config --cflags --libs ftxui)"
             # shellcheck disable=SC2086
-            "$CXX_CMD" "$file" -std=c++20 -O2 -I "$SRC_DIR/common" -o "$out" $ftxui_flags
+            "$CXX_CMD" "$file" -std=c++20 -O2 -pthread -I "$SRC_DIR/common" -o "$out" $ftxui_flags
         else
-            "$CXX_CMD" "$file" -std=c++20 -O2 -I "$SRC_DIR/common" -o "$out" \
+            "$CXX_CMD" "$file" -std=c++20 -O2 -pthread -I "$SRC_DIR/common" -o "$out" \
                 -lftxui-component -lftxui-dom -lftxui-screen
         fi
     else
@@ -72,6 +73,7 @@ build_one() {
 }
 
 pids=""
+failed=0
 
 for file in $BUILD_SOURCES; do
     if [ ! -f "$file" ]; then
@@ -92,7 +94,6 @@ for file in *.cpp; do
     warn "Skipping non-public legacy source: $file"
 done
 
-failed=0
 for pid in $pids; do
     if ! wait "$pid"; then
         failed=1

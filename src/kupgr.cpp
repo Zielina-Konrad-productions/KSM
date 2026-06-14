@@ -192,8 +192,8 @@ void version() {
 }
 
 void help() {
-    std::cout << BLUE << "Usage: " << RESET << "sudo kupgr [options]\n";
-    std::cout << "Interactive terminal GUI for updating KSM from GitHub Releases.\n\n";
+    std::cout << BLUE << "Usage: " << RESET << "sudo ksm\n";
+    std::cout << "Internal updater helper used by the KSM panel.\n\n";
     std::cout << BLUE << "Repository:" << RESET << '\n';
     std::cout << "  Zielina-Konrad-productions/KSM releases\n\n";
     std::cout << BLUE << "Options:" << RESET << '\n';
@@ -728,7 +728,7 @@ void draw(const Options& options, int cursor) {
     draw_row(3 + offset, cursor, "Preserve config       " + yes_no(options.preserveConfig));
     draw_row(4 + offset, cursor, "Force reinstall       " + yes_no(options.force));
     draw_row(5 + offset, cursor, "Build C++ programs    " + yes_no(options.buildProject));
-    draw_row(6 + offset, cursor, "Link commands         " + yes_no(options.linkCommands));
+    draw_row(6 + offset, cursor, "Link sudo ksm         " + yes_no(options.linkCommands));
     draw_row(start_row(options), cursor, "Start update          Enter", true);
     draw_row(cancel_row(options), cursor, "Cancel                Enter or q");
 
@@ -824,7 +824,7 @@ bool confirm_update(const Options& options) {
     std::cout << "Preserve config     : " << (options.preserveConfig ? "yes" : "no") << '\n';
     std::cout << "Force reinstall     : " << (options.force ? "yes" : "no") << '\n';
     std::cout << "Build project       : " << (options.buildProject ? "yes" : "no") << '\n';
-    std::cout << "Link commands       : " << (options.linkCommands ? "yes" : "no") << "\n\n";
+    std::cout << "Link sudo ksm       : " << (options.linkCommands ? "yes" : "no") << "\n\n";
     if (installing_stable_over_prerelease(options)) {
         std::cout << YELLOW << "Warning:" << RESET
                   << " installed version looks experimental/pre; stable release will be installed.\n\n";
@@ -958,19 +958,37 @@ bool link_commands() {
         return false;
     }
 
-    std::error_code ec;
-    for (const auto& entry : fs::directory_iterator(binDir, ec)) {
-        if (ec) {
-            log_line("links: cannot read bin directory: " + ec.message());
-            return false;
-        }
-        if (!entry.is_regular_file()) continue;
-        const fs::path link = fs::path(kBinDir) / entry.path().filename();
-        if (run_process({"ln", "-sf", entry.path().string(), link.string()}).exitCode != 0) {
-            log_line("links: failed to link " + link.string());
+    const std::vector<std::string> legacyCommands = {
+        "kcontrol", "khome", "kupgr", "kuninstall", "ksysinfo", "kserv", "kperm",
+        "kssh", "kfirewall", "kgroupadd", "kgroupmod", "kgroupdel",
+        "kuseradd", "kusermod", "kuserdel", "knetcfg"
+    };
+
+    for (const auto& command : legacyCommands) {
+        const fs::path link = fs::path(kBinDir) / command;
+        const fs::path expected = binDir / command;
+        std::error_code ec;
+        const auto status = fs::symlink_status(link, ec);
+        if (ec || !fs::exists(status) || !fs::is_symlink(status)) continue;
+        const fs::path target = fs::read_symlink(link, ec);
+        if (ec || target != expected) continue;
+        if (run_process({"rm", "-f", link.string()}).exitCode != 0) {
+            log_line("links: failed to remove legacy link " + link.string());
             return false;
         }
     }
+
+    const fs::path source = binDir / "ksm";
+    const fs::path link = fs::path(kBinDir) / "ksm";
+    if (!fs::is_regular_file(source)) {
+        log_line("links: missing ksm binary");
+        return false;
+    }
+    if (run_process({"ln", "-sf", source.string(), link.string()}).exitCode != 0) {
+        log_line("links: failed to link " + link.string());
+        return false;
+    }
+    log_line("links: public command ready: sudo ksm");
     return true;
 }
 
@@ -1218,8 +1236,9 @@ int run_update_screen(Terminal& terminal, const Options& options) {
     const UpdateResult result = run_update(options);
     std::cout << '\n';
     if (result == UpdateResult::Updated) {
+        std::cout << GREEN << "[+]" << RESET << " UPDATE COMPLETED\n";
         std::cout << GREEN << "[+]" << RESET << " KSM updated successfully.\n";
-        std::cout << "Run: " << CYAN << "ksm" << RESET << " or " << CYAN << "ksm home" << RESET << '\n';
+        std::cout << "Run: " << CYAN << "sudo ksm" << RESET << '\n';
         std::cout << YELLOW << "[RAPORT]" << RESET << " " << kLogPath << '\n';
         return 0;
     }
@@ -1290,7 +1309,8 @@ int run_once(Options options) {
 
     const UpdateResult result = run_update(options);
     if (result == UpdateResult::Updated) {
-        std::cout << GREEN << "[+]" << RESET << " KSM updated successfully.\n";
+        std::cout << GREEN << "[+]" << RESET << " UPDATE COMPLETED\n";
+        std::cout << GREEN << "[+]" << RESET << " KSM updated successfully. Run: sudo ksm\n";
         std::cout << YELLOW << "[RAPORT]" << RESET << " " << kLogPath << '\n';
         return 0;
     }
@@ -1407,7 +1427,7 @@ int main(int argc, char* argv[]) {
         if (arg == "--panel") continue;
 
         std::cerr << RED << "unknown option:" << RESET << " " << arg << '\n';
-        std::cerr << "run 'kupgr --help' to list options.\n";
+        std::cerr << "run 'ksm --help' to list options.\n";
         return 1;
     }
 

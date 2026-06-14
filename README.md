@@ -4,31 +4,22 @@
 ![Terminal](https://img.shields.io/badge/UI-ANSI%2Btermios%20%2B%20FTXUI-cyan)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Kastiusz System Manager, or **KSM**, is a terminal toolkit for Linux system management. It uses blue terminal interfaces, focused C++ tools, and an FTXUI based control center.
+Kastiusz System Manager, or **KSM**, is a terminal system manager for Linux. It uses one blue FTXUI control center opened with `sudo ksm`.
 
 ## Features
 
-- `ksm` wrapper for the main tools
-- `kcontrol` FTXUI based YaST-style KSM control center with native panels for KSM functions
-- `khome` built-in help pages
-- `kupgr` interactive updater from GitHub Releases
-- `kuninstall` interactive uninstaller
-- `ksysinfo` interactive system information dashboard
-- `kserv` interactive systemd service manager
-- `kperm` interactive permission and owner manager
-- `kssh` interactive SSH daemon configuration helper
-- `kfirewall` interactive ufw/firewalld helper
-- `kuseradd` interactive user creator
-- `kusermod` interactive user modifier
-- `kuserdel` interactive user remover
-- `kgroupadd` interactive group creator
-- `kgroupmod` interactive group modifier
-- `kgroupdel` interactive group remover
-- `knetcfg` interactive network interface configuration
-- ANSI + termios tools, with `FTXUI` used for the main control center
+- one public command: `sudo ksm`
+- FTXUI based YaST-style control center
+- native panels for users, groups, services, permissions, network, SSH, firewall, update, uninstall, and system info
+- updater from GitHub Releases with a step progress bar and clear green completion screen
+- internal helper binaries stay in `/opt/KSM/bin` and are not linked as public commands
 - C++20 build through `src/build.sh`
 
-When a tool is opened from `kcontrol`, the workflow stays inside the FTXUI control center: lists, settings, confirmations, and actions use the same panel style instead of jumping into the older standalone ANSI screens.
+Everything is operated from the panel. After install, use only:
+
+```bash
+sudo ksm
+```
 
 ## Install With Curl
 
@@ -46,7 +37,7 @@ cd KSM
 sudo bash ./INSTALL.sh
 ```
 
-The installer builds a temporary C++ panel, installs KSM to `/opt/KSM`, builds binaries into `/opt/KSM/bin`, and links commands into `/usr/bin`.
+The installer builds a temporary C++ panel, installs KSM to `/opt/KSM`, builds internal binaries into `/opt/KSM/bin`, and links only `/usr/bin/ksm`.
 
 ## Dependencies
 
@@ -59,64 +50,15 @@ The installer can install the needed packages automatically:
 ## Uninstall
 
 ```bash
-sudo kuninstall
-```
-
-The repository wrapper can also launch the installed uninstaller:
-
-```bash
 sudo bash ./UNINSTALL.sh
 ```
 
-The uninstaller removes `/opt/KSM` and only removes `/usr/bin` command links that point to `/opt/KSM/bin`.
+You can also uninstall from inside `sudo ksm`. The uninstaller removes `/opt/KSM` and only removes `/usr/bin` command links that point to `/opt/KSM/bin`.
 
-## Commands
-
-```bash
-khome
-kcontrol
-khome -ui
-kupgr
-kupgr --yes
-kupgr -ex --repo-snapshot
-kuninstall
-ksysinfo
-kserv
-kperm
-kssh
-kfirewall
-kuseradd
-kusermod
-kuserdel
-kgroupadd
-kgroupmod
-kgroupdel
-knetcfg
-```
-
-KSM wrapper alternatives:
+## Usage
 
 ```bash
-ksm
-ksm control
-ksm menu
-ksm home
-ksm home -ui
-ksm upgrade
-ksm upgrade -ex
-ksm uninstall
-ksm sysinfo
-ksm serv
-ksm perm
-ksm ssh
-ksm firewall
-ksm useradd
-ksm usermod
-ksm userdel
-ksm groupadd
-ksm groupmod
-ksm groupdel
-ksm netcfg
+sudo ksm
 ```
 
 ## Build
@@ -133,7 +75,7 @@ Or from an installed source tree:
 sudo bash /opt/KSM/src/build.sh
 ```
 
-`src/build.sh` compiles every `src/*.cpp` tool except `kinstall.cpp`, because `kinstall.cpp` exists only for `INSTALL.sh`.
+`src/build.sh` builds the public `ksm` entrypoint plus the internal `kcontrol` and `kupgr` helpers. Legacy source files remain in the tree, but they are not public commands.
 
 ## Project Layout
 

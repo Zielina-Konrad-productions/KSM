@@ -163,11 +163,11 @@ void draw(const Options& options, int cursor) {
     draw_row(0, cursor, "Install dependencies  " + yes_no(options.installDependencies));
     draw_row(1, cursor, "Replace existing      " + yes_no(options.replaceExisting));
     draw_row(2, cursor, "Build C++ programs    " + yes_no(options.buildProject));
-    draw_row(3, cursor, "Link commands         " + yes_no(options.linkCommands));
+    draw_row(3, cursor, "Link sudo ksm command " + yes_no(options.linkCommands));
     draw_row(4, cursor, "Start installation    Enter", true);
     draw_row(5, cursor, "Cancel                Enter or q");
 
-    std::cout << "\nCommands after install: ksm, kcontrol, khome, kupgr, kuninstall, ksysinfo, kserv, kperm, kssh, kfirewall, kgroupadd, kgroupmod, kgroupdel, kuseradd, kusermod, kuserdel, knetcfg\n";
+    std::cout << "\nCommand after install: sudo ksm\n";
     if (!options.message.empty()) std::cout << '\n' << YELLOW << options.message << RESET << '\n';
     std::cout << std::flush;
 }
@@ -244,7 +244,7 @@ bool confirm_install(const Options& options) {
     std::cout << "Install dependencies: " << (options.installDependencies ? "yes" : "no") << '\n';
     std::cout << "Replace existing    : " << (options.replaceExisting ? "yes" : "no") << '\n';
     std::cout << "Build project       : " << (options.buildProject ? "yes" : "no") << '\n';
-    std::cout << "Link commands       : " << (options.linkCommands ? "yes" : "no") << "\n\n";
+    std::cout << "Link sudo ksm       : " << (options.linkCommands ? "yes" : "no") << "\n\n";
     std::cout << "Press " << BLUE << "Enter" << RESET << " or " << BLUE << "y" << RESET
               << " to install, any other key to return.\n";
 
@@ -328,7 +328,7 @@ bool build_project(const Options& options) {
 
 bool link_commands(const Options& options) {
     if (!options.linkCommands) {
-        std::cout << YELLOW << "[!]" << RESET << " Command linking skipped.\n";
+        std::cout << YELLOW << "[!]" << RESET << " ksm command linking skipped.\n";
         return true;
     }
 
@@ -338,14 +338,34 @@ bool link_commands(const Options& options) {
         return false;
     }
 
-    std::cout << CYAN << "[*]" << RESET << " Linking commands in " << options.binPath << "...\n";
-    for (const auto& entry : fs::directory_iterator(binDir)) {
-        if (!entry.is_regular_file()) continue;
-        const std::string source = entry.path().string();
-        const std::string link = (fs::path(options.binPath) / entry.path().filename()).string();
-        if (run_process({"ln", "-sf", source, link}).exitCode != 0) return false;
+    const std::vector<std::string> legacyCommands = {
+        "kcontrol", "khome", "kupgr", "kuninstall", "ksysinfo", "kserv", "kperm",
+        "kssh", "kfirewall", "kgroupadd", "kgroupmod", "kgroupdel",
+        "kuseradd", "kusermod", "kuserdel", "knetcfg"
+    };
+
+    std::cout << CYAN << "[*]" << RESET << " Cleaning old public KSM command links...\n";
+    for (const auto& command : legacyCommands) {
+        const fs::path link = fs::path(options.binPath) / command;
+        const fs::path expected = binDir / command;
+        std::error_code ec;
+        const auto status = fs::symlink_status(link, ec);
+        if (ec || !fs::exists(status) || !fs::is_symlink(status)) continue;
+        const fs::path target = fs::read_symlink(link, ec);
+        if (ec || target != expected) continue;
+        if (run_process({"rm", "-f", link.string()}).exitCode != 0) return false;
     }
-    std::cout << GREEN << "[+]" << RESET << " Commands linked.\n";
+
+    const fs::path source = binDir / "ksm";
+    const fs::path link = fs::path(options.binPath) / "ksm";
+    if (!fs::is_regular_file(source)) {
+        std::cout << RED << "[x]" << RESET << " Missing ksm binary.\n";
+        return false;
+    }
+    std::cout << CYAN << "[*]" << RESET << " Linking " << link << " -> " << source << "...\n";
+    if (run_process({"ln", "-sf", source.string(), link.string()}).exitCode != 0) return false;
+
+    std::cout << GREEN << "[+]" << RESET << " Public command ready: sudo ksm\n";
     return true;
 }
 
@@ -368,19 +388,7 @@ int run_installation(Terminal& terminal, const Options& options) {
     std::cout << '\n';
     if (ok) {
         std::cout << GREEN << "[+]" << RESET << " Installation complete.\n";
-        std::cout << "Run: " << CYAN << "ksm" << RESET << ", " << CYAN << "khome" << RESET
-                  << ", " << CYAN << "kcontrol" << RESET
-                  << ", " << CYAN << "ksm upgrade" << RESET << ", "
-                  << CYAN << "ksm sysinfo" << RESET << ", "
-                  << CYAN << "ksm serv" << RESET << ", "
-                  << CYAN << "ksm perm" << RESET << ", "
-                  << CYAN << "knetcfg" << RESET << ", "
-                  << CYAN << "ksm ssh" << RESET << ", "
-                  << CYAN << "ksm firewall" << RESET << ", "
-                  << CYAN << "ksm groupadd" << RESET << ", "
-                  << CYAN << "ksm groupmod" << RESET << ", "
-                  << CYAN << "ksm useradd" << RESET << ", "
-                  << CYAN << "ksm usermod" << RESET << '\n';
+        std::cout << "Run: " << CYAN << "sudo ksm" << RESET << '\n';
         return 0;
     }
 
