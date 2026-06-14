@@ -143,6 +143,7 @@ struct ProgressState {
     bool ok = false;
     int exitCode = 1;
     bool upToDate = false;
+    bool completed = false;
     std::string title = "KSM UPDATE";
     std::string status = "Preparing update...";
     std::string output;
@@ -479,9 +480,10 @@ CommandResult run_command_with_progress(std::vector<std::string> args, bool asRo
 
         {
             std::lock_guard<std::mutex> lock(state.mutex);
-            state.exitCode = code;
+            const bool logicalSuccess = code == 0 || state.completed || state.upToDate;
+            state.exitCode = logicalSuccess ? 0 : code;
             state.done = true;
-            state.ok = code == 0;
+            state.ok = logicalSuccess;
             if (state.ok) {
                 state.currentStep = static_cast<int>(state.steps.size()) - 1;
                 state.status = state.upToDate ? "Already on newest version." : "Update completed.";
@@ -579,6 +581,7 @@ void update_progress_from_line(ProgressState& state, const std::string& line) {
     else if (lowerLine.find("activating new ksm installation") != std::string::npos) step(8, "Activating installation...");
     else if (lowerLine.find("update completed") != std::string::npos ||
              lowerLine.find("updated successfully") != std::string::npos) {
+        state.completed = true;
         step(9, "Update completed.");
     } else if (lowerLine.find("failed") != std::string::npos ||
                lowerLine.find("[x]") != std::string::npos) {
