@@ -175,8 +175,7 @@ std::vector<Category> categories() {
             "Overview",
             {
                 {"KSM Home", "khome", {}, "Browse KSM pages inside the control center", false, ModuleKind::Home},
-                {"System Info", "ksysinfo", {}, "Live system dashboard", false, ModuleKind::SysInfo},
-                {"Upgrade KSM", "kupgr", {}, "Update from GitHub Releases", true, ModuleKind::Upgrade}
+                {"System Info", "ksysinfo", {}, "Live system dashboard", false, ModuleKind::SysInfo}
             }
         },
         {
@@ -209,8 +208,7 @@ std::vector<Category> categories() {
             "Maintenance",
             {
                 {"Uninstall KSM", "kuninstall", {}, "Remove KSM installation", true, ModuleKind::Uninstall},
-                {"Stable Updater", "kupgr", {}, "Stable release updater", true, ModuleKind::Upgrade},
-                {"Experimental Updater", "kupgr", {"-ex"}, "Prerelease and snapshot updater", true, ModuleKind::Upgrade}
+                {"Updater", "kupgr", {}, "Stable, prerelease and snapshot updater", true, ModuleKind::Upgrade}
             }
         }
     };
@@ -860,13 +858,26 @@ std::vector<ListItem> picker_users(const std::string& current) {
 
 void refresh_sysinfo(NativePanel& panel) {
     panel.detailLines.clear();
-    panel.detailLines.push_back("Hostname: " + shell_output("hostname 2>/dev/null"));
-    panel.detailLines.push_back("Kernel: " + shell_output("uname -srmo 2>/dev/null"));
-    panel.detailLines.push_back("Uptime: " + shell_output("uptime -p 2>/dev/null"));
-    panel.detailLines.push_back("Load: " + shell_output("cat /proc/loadavg 2>/dev/null"));
-    panel.detailLines.push_back("Disk /: " + shell_output("df -h / 2>/dev/null | awk 'NR==2 {print $3 \" used of \" $2 \" (\" $5 \")\"}'"));
-    panel.detailLines.push_back("Memory: " + shell_output("free -h 2>/dev/null | awk '/Mem:/ {print $3 \" used of \" $2}'"));
-    panel.detailLines.push_back("Failed units: " + shell_output("systemctl --failed --no-legend 2>/dev/null | wc -l"));
+    panel.list.clear();
+
+    auto add = [&](const std::string& label, const std::string& command) {
+        ListItem item;
+        item.key = label;
+        item.label = label;
+        item.detail = shell_output(command);
+        if (item.detail.empty()) item.detail = "-";
+        panel.list.push_back(item);
+    };
+
+    add("Hostname", "hostname 2>/dev/null");
+    add("Kernel", "uname -srmo 2>/dev/null");
+    add("Uptime", "uptime -p 2>/dev/null");
+    add("Load", "cat /proc/loadavg 2>/dev/null");
+    add("Disk /", "df -h / 2>/dev/null | awk 'NR==2 {print $3 \" used of \" $2 \" (\" $5 \")\"}'");
+    add("Memory", "free -h 2>/dev/null | awk '/Mem:/ {print $3 \" used of \" $2}'");
+    add("Failed units", "systemctl --failed --no-legend 2>/dev/null | wc -l");
+
+    panel.listIndex = 0;
     panel.message = "System snapshot refreshed.";
 }
 
