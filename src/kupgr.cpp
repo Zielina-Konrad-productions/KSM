@@ -924,26 +924,7 @@ bool write_release_version_file(const fs::path& directory, const ReleaseInfo& re
     return true;
 }
 
-bool normalize_script_line_endings(const fs::path& script) {
-    std::ifstream input(script, std::ios::binary);
-    if (!input.is_open()) return false;
-
-    std::string content((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
-    const auto oldSize = content.size();
-    content.erase(std::remove(content.begin(), content.end(), '\r'), content.end());
-    if (content.size() == oldSize) return true;
-
-    std::ofstream output(script, std::ios::binary | std::ios::trunc);
-    if (!output.is_open()) return false;
-    output << content;
-    return output.good();
-}
-
 bool build_project(const fs::path& sourceDir) {
-    if (!normalize_script_line_endings(sourceDir / "src" / "build.sh")) {
-        return false;
-    }
-
     ProcessConfig config;
     config.cwd = (sourceDir / "src").string();
     config.env.push_back({"KSM_TARGET", sourceDir.string()});

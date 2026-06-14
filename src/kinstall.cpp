@@ -167,7 +167,7 @@ void draw(const Options& options, int cursor) {
     draw_row(4, cursor, "Start installation    Enter", true);
     draw_row(5, cursor, "Cancel                Enter or q");
 
-    std::cout << "\nCommands after install: ksm, khome, kupgr, kuninstall, kgroupadd, kgroupdel, kuseradd, kuserdel\n";
+    std::cout << "\nCommands after install: ksm, khome, kupgr, kuninstall, kgroupadd, kgroupdel, kuseradd, kuserdel, knetcfg\n";
     if (!options.message.empty()) std::cout << '\n' << YELLOW << options.message << RESET << '\n';
     std::cout << std::flush;
 }
@@ -215,21 +215,6 @@ bool required_files_exist(const Options& options) {
            fs::is_regular_file(fs::path(options.sourcePath) / "src" / "build.sh") &&
            fs::is_regular_file(fs::path(options.sourcePath) / "VERSION.txt") &&
            fs::is_regular_file(fs::path(options.sourcePath) / "kastiusz.conf");
-}
-
-bool normalize_script_line_endings(const fs::path& script) {
-    std::ifstream input(script, std::ios::binary);
-    if (!input.is_open()) return false;
-
-    std::string content((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
-    const auto oldSize = content.size();
-    content.erase(std::remove(content.begin(), content.end(), '\r'), content.end());
-    if (content.size() == oldSize) return true;
-
-    std::ofstream output(script, std::ios::binary | std::ios::trunc);
-    if (!output.is_open()) return false;
-    output << content;
-    return output.good();
 }
 
 bool confirm_install(const Options& options) {
@@ -317,7 +302,6 @@ bool build_project(const Options& options) {
 
     const std::string script = options.targetPath + "/src/build.sh";
     std::cout << CYAN << "[*]" << RESET << " Building C++ programs...\n";
-    if (!normalize_script_line_endings(script)) return false;
     if (run_process({"chmod", "+x", script}).exitCode != 0) return false;
     const bool ok = run_process({"bash", script}, options.targetPath + "/src").exitCode == 0;
     if (ok) std::cout << GREEN << "[+]" << RESET << " C++ programs built.\n";
@@ -368,6 +352,7 @@ int run_installation(Terminal& terminal, const Options& options) {
         std::cout << GREEN << "[+]" << RESET << " Installation complete.\n";
         std::cout << "Run: " << CYAN << "ksm" << RESET << ", " << CYAN << "khome" << RESET
                   << ", " << CYAN << "ksm upgrade" << RESET << ", "
+                  << CYAN << "knetcfg" << RESET << ", "
                   << CYAN << "ksm groupadd" << RESET << ", "
                   << CYAN << "ksm useradd" << RESET << '\n';
         return 0;

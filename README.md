@@ -16,6 +16,7 @@ Kastiusz System Manager, or **KSM**, is a terminal toolkit for Linux system mana
 - `kuserdel` interactive user remover
 - `kgroupadd` interactive group creator
 - `kgroupdel` interactive group remover
+- `knetcfg` interactive network interface configuration
 - ANSI + termios interface, no ncurses
 - C++20 build through `src/build.sh`
 
@@ -54,6 +55,19 @@ The uninstaller removes `/opt/KSM` and only removes `/usr/bin` command links tha
 ## Commands
 
 ```bash
+khome
+kupgr
+kuninstall
+kuseradd
+kuserdel
+kgroupadd
+kgroupdel
+knetcfg
+```
+
+KSM wrapper alternatives:
+
+```bash
 ksm
 ksm home
 ksm upgrade
@@ -63,18 +77,7 @@ ksm useradd
 ksm userdel
 ksm groupadd
 ksm groupdel
-```
-
-Direct tools are also available after install:
-
-```bash
-khome
-kupgr
-kuninstall
-kuseradd
-kuserdel
-kgroupadd
-kgroupdel
+ksm netcfg
 ```
 
 ## Build
@@ -111,6 +114,7 @@ src/
   kuserdel.cpp
   kgroupadd.cpp
   kgroupdel.cpp
+  knetcfg.cpp
   kinstall.cpp
   common/
 ```
