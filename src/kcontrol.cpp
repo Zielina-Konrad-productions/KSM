@@ -459,12 +459,23 @@ std::string read_file_text(const fs::path& path) {
     return buffer.str();
 }
 
-CommandResult run_command_with_progress(std::vector<std::string> args, bool asRoot = false) {
+CommandResult run_command_with_progress(
+    std::vector<std::string> args,
+    bool asRoot = false,
+    const std::string& input = "",
+    const std::string& title = "KSM UPDATE",
+    const std::string& successStatus = "Update completed.",
+    const std::string& failureStatus = "Update failed. Check /tmp/kupgr.log.",
+    const std::vector<std::string>& customSteps = {}
+) {
     if (asRoot && geteuid() != 0) {
         args.insert(args.begin(), "sudo");
     }
 
     ProgressState state;
+    state.title = title;
+    if (!customSteps.empty()) state.steps = customSteps;
+    state.status = "Starting...";
     auto screen = ScreenInteractive::Fullscreen();
     auto exitLoop = screen.ExitLoopClosure();
 
@@ -480,7 +491,14 @@ CommandResult run_command_with_progress(std::vector<std::string> args, bool asRo
         };
 
         int outPipe[2] = {-1, -1};
+        int inPipe[2] = {-1, -1};
         if (pipe(outPipe) != 0) {
+            finish(1, "pipe failed");
+            return;
+        }
+        if (!input.empty() && pipe(inPipe) != 0) {
+            close(outPipe[0]);
+            close(outPipe[1]);
             finish(1, "pipe failed");
             return;
         }
@@ -489,6 +507,10 @@ CommandResult run_command_with_progress(std::vector<std::string> args, bool asRo
         if (pid < 0) {
             close(outPipe[0]);
             close(outPipe[1]);
+            if (inPipe[0] != -1) {
+                close(inPipe[0]);
+                close(inPipe[1]);
+            }
             finish(1, std::strerror(errno));
             return;
         }
@@ -496,8 +518,13 @@ CommandResult run_command_with_progress(std::vector<std::string> args, bool asRo
         if (pid == 0) {
             dup2(outPipe[1], STDOUT_FILENO);
             dup2(outPipe[1], STDERR_FILENO);
+            if (!input.empty()) dup2(inPipe[0], STDIN_FILENO);
             close(outPipe[0]);
             close(outPipe[1]);
+            if (inPipe[0] != -1) {
+                close(inPipe[0]);
+                close(inPipe[1]);
+            }
 
             std::vector<char*> argv;
             for (auto& arg : args) argv.push_back(const_cast<char*>(arg.c_str()));
@@ -507,6 +534,18 @@ CommandResult run_command_with_progress(std::vector<std::string> args, bool asRo
         }
 
         close(outPipe[1]);
+        if (!input.empty()) {
+            close(inPipe[0]);
+            const char* data = input.data();
+            size_t remaining = input.size();
+            while (remaining > 0) {
+                const ssize_t written = write(inPipe[1], data, remaining);
+                if (written <= 0) break;
+                data += written;
+                remaining -= static_cast<size_t>(written);
+            }
+            close(inPipe[1]);
+        }
 
         std::string pendingLine;
         char buffer[512];
@@ -542,10 +581,11 @@ CommandResult run_command_with_progress(std::vector<std::string> args, bool asRo
 
         {
             std::lock_guard<std::mutex> lock(state.mutex);
-            const std::string logText = read_file_text("/tmp/kupgr.log");
+            const bool ksmUpdate = title == "KSM UPDATE";
+            const std::string logText = ksmUpdate ? read_file_text("/tmp/kupgr.log") : "";
             const std::string combinedOutput = state.output + "\n" + logText;
-            if (update_output_up_to_date(combinedOutput)) state.upToDate = true;
-            if (update_output_completed(combinedOutput)) state.completed = true;
+            if (ksmUpdate && update_output_up_to_date(combinedOutput)) state.upToDate = true;
+            if (ksmUpdate && update_output_completed(combinedOutput)) state.completed = true;
 
             const bool logicalSuccess = code == 0 || state.completed || state.upToDate;
             state.exitCode = logicalSuccess ? 0 : code;
@@ -553,9 +593,9 @@ CommandResult run_command_with_progress(std::vector<std::string> args, bool asRo
             state.ok = logicalSuccess;
             if (state.ok) {
                 state.currentStep = static_cast<int>(state.steps.size()) - 1;
-                state.status = state.upToDate ? "Already on newest version." : "Update completed.";
+                state.status = state.upToDate ? "Already on newest version." : successStatus;
             } else {
-                state.status = "Update failed. Check /tmp/kupgr.log.";
+                state.status = failureStatus;
             }
         }
         screen.PostEvent(Event::Custom);
@@ -685,6 +725,22 @@ void update_progress_from_line(ProgressState& state, const std::string& line) {
     };
 
     if (lowerLine.find("checking required tools") != std::string::npos) step(1, "Checking required tools...");
+    else if (lowerLine.find("detected package manager") != std::string::npos) step(1, "Checking system...");
+    else if (lowerLine.find("zpm dependencies") != std::string::npos ||
+             lowerLine.find("installing dependencies") != std::string::npos) step(2, "Installing dependencies...");
+    else if (lowerLine.find("fetching latest version") != std::string::npos) step(3, "Fetching latest ZPM release...");
+    else if (lowerLine.find("downloading") != std::string::npos && lowerLine.find("zpm") != std::string::npos) step(4, "Downloading ZPM...");
+    else if (lowerLine.find("extracting archive") != std::string::npos) step(5, "Extracting ZPM...");
+    else if (lowerLine.find("installing to /opt/zpm") != std::string::npos ||
+             lowerLine.find("files copied to /opt/zpm") != std::string::npos) step(6, "Installing ZPM files...");
+    else if (lowerLine.find("recompiling zpm") != std::string::npos ||
+             lowerLine.find("recompilation complete") != std::string::npos) step(7, "Compiling ZPM...");
+    else if (lowerLine.find("updating symlinks") != std::string::npos ||
+             lowerLine.find("symlinks created") != std::string::npos) step(8, "Linking ZPM commands...");
+    else if (lowerLine.find("installation complete") != std::string::npos) {
+        state.completed = true;
+        step(9, "ZPM installation complete.");
+    }
     else if (lowerLine.find("fetching github release metadata") != std::string::npos) step(2, "Fetching release metadata...");
     else if (lowerLine.find("already on newest version") != std::string::npos) {
         state.upToDate = true;
@@ -2223,7 +2279,26 @@ void execute_install_zpm(NativePanel& panel) {
     }
     const std::string script =
         "bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Zielina-Konrad-productions/ZPM/main/INETINSTALL.sh)\"";
-    CommandResult result = run_command({"bash", "-lc", script}, true);
+    CommandResult result = run_command_with_progress(
+        {"bash", "-lc", script},
+        true,
+        "y\ny\n",
+        "ZPM INSTALL",
+        "ZPM installation complete.",
+        "ZPM installation failed. Check /tmp/ZPM_INETINSTALL.log.",
+        {
+            "Authorize",
+            "Check system",
+            "Dependencies",
+            "Fetch release",
+            "Download",
+            "Extract",
+            "Install files",
+            "Compile",
+            "Link commands",
+            "Finish"
+        }
+    );
 
     refresh_zpm_status(panel);
     set_terminal_output(panel, "ZPM installer output", result.output);
