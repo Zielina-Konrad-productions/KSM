@@ -1276,7 +1276,7 @@ NativePanel make_native_panel(const Module& module) {
             "Source: github.com/Zielina-Konrad-productions/ZPM",
             "Extensions is the place for optional tools to install.",
             "After /opt/ZPM exists, KSM adds a separate ZPM tab.",
-            "Install downloads the repository archive and runs its INSTALL.sh."
+            "Install runs the ZPM INETINSTALL.sh script through bash."
         };
         panel.message = zpm_installed()
             ? "ZPM extension detected. Reopen menu to use the ZPM tab."
@@ -2221,24 +2221,8 @@ void execute_install_zpm(NativePanel& panel) {
         panel.noticeOk = false;
         return;
     }
-    if (!command_exists("tar")) {
-        panel.message = "Missing tar. Install tar first.";
-        panel.noticeTitle = "ZPM INSTALL FAILED";
-        panel.noticeBody = "tar is required to unpack the ZPM repository archive.";
-        panel.noticeOk = false;
-        return;
-    }
-
     const std::string script =
-        "set -e; "
-        "rm -rf /tmp/ksm-zpm-src /tmp/ksm-zpm.tar.gz; "
-        "mkdir -p /tmp/ksm-zpm-src; "
-        "curl -fsSL https://github.com/Zielina-Konrad-productions/ZPM/archive/refs/heads/main.tar.gz -o /tmp/ksm-zpm.tar.gz; "
-        "tar -xzf /tmp/ksm-zpm.tar.gz -C /tmp/ksm-zpm-src --strip-components=1; "
-        "cd /tmp/ksm-zpm-src; "
-        "if [ -f ./INSTALL.sh ]; then bash ./INSTALL.sh; "
-        "elif [ -f ./src/build.sh ]; then bash ./src/build.sh; "
-        "else echo 'No INSTALL.sh or src/build.sh found in ZPM repository.'; exit 1; fi";
+        "bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Zielina-Konrad-productions/ZPM/main/INETINSTALL.sh)\"";
     CommandResult result = run_command({"bash", "-lc", script}, true);
 
     refresh_zpm_status(panel);
