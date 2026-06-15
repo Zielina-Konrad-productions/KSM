@@ -12,7 +12,7 @@ Kastiusz System Manager, or **KSM**, is a terminal system manager for Linux. It 
 - FTXUI based YaST-style control center
 - native panels for users, groups, services, permissions, network, SSH, firewall, extensions, update, uninstall, and system info
 - updater from GitHub Releases with a step progress bar and clear green completion screen
-- Extensions panel can install ZPM, then `/opt/ZPM` enables a separate ZPM tab for launching compiled ZPM binaries
+- Extensions panel can install ZPM, then `/opt/ZPM` enables a separate ZPM tab with GUI forms for ZPM functions
 - internal helper binaries stay in `/opt/KSM/bin` and are not linked as public commands
 - C++20 build through `src/build.sh`
 
@@ -61,6 +61,10 @@ You can also uninstall from inside `sudo ksm`. The uninstaller removes `/opt/KSM
 ```bash
 sudo ksm
 ```
+
+## ZPM Extension
+
+Open `Extensions` in the control center to install ZPM from `Zielina-Konrad-productions/ZPM`. When `/opt/ZPM` exists, KSM shows a separate `ZPM` tab with panel forms for `zinst`, `zrm`, `zsearch`, `zinfo`, `zlist`, `zrun`, `zupd`, `zupgr`, `zclean`, `zhome`, `ztui`, and `zuninstall`.
 
 ## Build
 
