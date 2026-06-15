@@ -10,7 +10,7 @@ Kastiusz System Manager, or **KSM**, is a terminal system manager for Linux. It 
 
 - one public command: `sudo ksm`
 - FTXUI based YaST-style control center
-- native panels for users, groups, services, permissions, network, SSH, firewall, extensions, update, uninstall, and system info
+- native panels for users, groups, services, Samba, Apache, DNS, DHCP, FTP, power actions, permissions, network, SSH, firewall, extensions, update, uninstall, and system info
 - updater from GitHub Releases with a step progress bar and clear green completion screen
 - Extensions panel can install ZPM, then `/opt/ZPM` enables a separate ZPM tab with GUI forms for ZPM functions
 - internal helper binaries stay in `/opt/KSM/bin` and are not linked as public commands
@@ -47,6 +47,14 @@ The installer can install the needed packages automatically:
 - Debian/Ubuntu: `g++ sudo coreutils curl tar nano passwd systemd systemd-resolved iproute2 procps util-linux openssh-server ufw pkg-config libftxui-dev`
 - openSUSE: `gcc-c++ sudo coreutils curl tar nano shadow systemd iproute2 procps util-linux openssh firewalld pkgconf-pkg-config ftxui-devel`
 - Fedora/RHEL: `gcc-c++ sudo coreutils curl tar nano shadow-utils systemd iproute procps-ng util-linux openssh-server firewalld pkgconf-pkg-config ftxui-devel`
+
+Optional service extensions can be installed from inside `sudo ksm`:
+
+- Samba: `samba`
+- Apache: `apache2` or `httpd`
+- DNS: `bind9` or `bind`
+- DHCP: `isc-dhcp-server` or `dhcp-server`
+- FTP: `vsftpd`
 
 ## Uninstall
 
