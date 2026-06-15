@@ -2486,17 +2486,18 @@ int run_tui() {
     while (!shouldQuit) {
         pending = false;
         pendingAction.clear();
-        auto screen = ScreenInteractive::Fullscreen();
-        auto exitLoop = screen.ExitLoopClosure();
+        {
+            auto screen = ScreenInteractive::Fullscreen();
+            auto exitLoop = screen.ExitLoopClosure();
 
-        auto root = Renderer([&] {
-            if (view == ViewMode::NativePanel) {
-                return render_native_panel(panel, showHelp, edit, picker);
-            }
-            return render_menu(items, categoryIndex, moduleIndex, message, showHelp, menuFocus);
-        });
+            auto root = Renderer([&] {
+                if (view == ViewMode::NativePanel) {
+                    return render_native_panel(panel, showHelp, edit, picker);
+                }
+                return render_menu(items, categoryIndex, moduleIndex, message, showHelp, menuFocus);
+            });
 
-        root = CatchEvent(root, [&](Event event) {
+            root = CatchEvent(root, [&](Event event) {
             if (!panel.noticeTitle.empty()) {
                 if (event == Event::Return || event == Event::Escape ||
                     event == Event::Character("q") || event == Event::Character("Q")) {
@@ -2691,9 +2692,10 @@ int run_tui() {
                 return true;
             }
             return false;
-        });
+            });
 
-        screen.Loop(root);
+            screen.Loop(root);
+        }
         if (pending) {
             execute_panel_action(panel, pendingAction);
             items = categories();
