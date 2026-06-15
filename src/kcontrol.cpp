@@ -12,6 +12,7 @@
 #include <ftxui/component/screen_interactive.hpp>
 #include <ftxui/dom/elements.hpp>
 #include <grp.h>
+#include <limits>
 #include <mutex>
 #include <pwd.h>
 #include <sys/stat.h>
@@ -370,6 +371,22 @@ int parse_positive(const std::string& value, int fallback = 1) {
         return parsed > 0 ? parsed : fallback;
     } catch (...) {
         return fallback;
+    }
+}
+
+bool parse_non_negative_int(const std::string& value, int& output) {
+    std::string clean = trim(value);
+    if (clean.empty()) clean = "0";
+    for (unsigned char ch : clean) {
+        if (!std::isdigit(ch)) return false;
+    }
+    try {
+        const unsigned long parsed = std::stoul(clean);
+        if (parsed > static_cast<unsigned long>(std::numeric_limits<int>::max())) return false;
+        output = static_cast<int>(parsed);
+        return true;
+    } catch (...) {
+        return false;
     }
 }
 
@@ -1530,7 +1547,7 @@ NativePanel make_native_panel(const Module& module) {
             {RowType::Action, "cancel_shutdown", "Cancel shutdown", "", {}, false, false}
         };
         panel.detailLines = {
-            "Delay 0 means now.",
+            "Delay accepts whole minutes only. 0 means now.",
             "Reboot and shutdown use systemctl/shutdown directly."
         };
         break;
@@ -2646,25 +2663,27 @@ void append_directives(std::string& config, const std::string& value, const std:
 }
 
 void execute_power(NativePanel& panel, const std::string& actionId) {
-    if (!ensure_root_auth(panel.message)) return;
     int code = 1;
     if (actionId == "reboot_now") {
+        if (!ensure_root_auth(panel.message)) return;
         code = run_command({"systemctl", "reboot"}, true).code;
         panel.message = code == 0 ? "Reboot requested." : "Reboot failed.";
     } else if (actionId == "shutdown_now") {
+        if (!ensure_root_auth(panel.message)) return;
         code = run_command({"systemctl", "poweroff"}, true).code;
         panel.message = code == 0 ? "Shutdown requested." : "Shutdown failed.";
     } else if (actionId == "shutdown_later") {
         int delay = 0;
-        try {
-            delay = std::max(0, std::stoi(trim(row_value(panel, "delay"))));
-        } catch (...) {
-            delay = 0;
+        if (!parse_non_negative_int(row_value(panel, "delay"), delay)) {
+            panel.message = "Delay must be whole minutes, for example 0, 5, or 120.";
+            return;
         }
+        if (!ensure_root_auth(panel.message)) return;
         const std::string when = delay <= 0 ? "now" : "+" + std::to_string(delay);
         code = run_command({"shutdown", "-h", when}, true).code;
         panel.message = code == 0 ? "Shutdown scheduled." : "Schedule shutdown failed.";
     } else if (actionId == "cancel_shutdown") {
+        if (!ensure_root_auth(panel.message)) return;
         code = run_command({"shutdown", "-c"}, true).code;
         panel.message = code == 0 ? "Scheduled shutdown cancelled." : "Cancel shutdown failed.";
     }
@@ -3362,7 +3381,13 @@ int run_tui() {
                     return true;
                 }
                 if (event.is_character()) {
-                    edit.buffer += event.character()[0];
+                    const char ch = event.character()[0];
+                    if (panel.kind == ModuleKind::Power && edit.rowId == "delay" &&
+                        !std::isdigit(static_cast<unsigned char>(ch))) {
+                        panel.message = "Delay accepts digits only.";
+                        return true;
+                    }
+                    edit.buffer += ch;
                     return true;
                 }
                 return true;
