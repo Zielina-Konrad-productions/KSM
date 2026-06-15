@@ -17,6 +17,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <thread>
+#include <utility>
 #include <unistd.h>
 
 namespace {
@@ -46,6 +47,7 @@ enum class ModuleKind {
     DhcpServer,
     FtpServer,
     ExtensionInstall,
+    ServiceExtensions,
     ZpmExtension,
     Uninstall
 };
@@ -161,6 +163,7 @@ void update_progress_from_line(ProgressState& state, const std::string& line);
 Element render_progress(const ProgressState& state);
 bool command_exists(const std::string& command);
 bool zpm_installed();
+bool service_feature_installed(const std::string& feature);
 
 void version() {
     std::cout << BLUE << "kcontrol component version: v" << ksm_version::version() << RESET << '\n';
@@ -180,6 +183,15 @@ void help() {
 }
 
 std::vector<Category> categories() {
+    std::vector<Module> serviceModules = {
+        {"Systemd Services", "kserv", {}, "Start, stop and enable systemd services", false, ModuleKind::Services}
+    };
+    if (service_feature_installed("samba")) serviceModules.push_back({"Samba", "samba", {}, "Configure Samba shares", true, ModuleKind::Samba});
+    if (service_feature_installed("apache")) serviceModules.push_back({"Apache", "apache", {}, "Configure Apache virtual host", true, ModuleKind::Apache});
+    if (service_feature_installed("dns")) serviceModules.push_back({"DNS", "dns", {}, "Configure BIND DNS", true, ModuleKind::DnsServer});
+    if (service_feature_installed("dhcp")) serviceModules.push_back({"DHCP", "dhcp", {}, "Configure DHCP server", true, ModuleKind::DhcpServer});
+    if (service_feature_installed("ftp")) serviceModules.push_back({"FTP", "ftp", {}, "Configure vsftpd", true, ModuleKind::FtpServer});
+
     std::vector<Category> items = {
         {
             "Overview",
@@ -208,13 +220,11 @@ std::vector<Category> categories() {
         },
         {
             "Services",
+            serviceModules
+        },
+        {
+            "Power",
             {
-                {"Systemd Services", "kserv", {}, "Start, stop and enable systemd services", false, ModuleKind::Services},
-                {"Samba", "samba", {}, "Install and configure Samba shares", true, ModuleKind::Samba},
-                {"Apache", "apache", {}, "Install and configure Apache virtual host", true, ModuleKind::Apache},
-                {"DNS", "dns", {}, "Install and configure a simple BIND DNS cache", true, ModuleKind::DnsServer},
-                {"DHCP", "dhcp", {}, "Install and configure a DHCP server", true, ModuleKind::DhcpServer},
-                {"FTP", "ftp", {}, "Install and configure vsftpd", true, ModuleKind::FtpServer},
                 {"Power", "power", {}, "Shutdown, reboot, and cancel scheduled shutdowns", true, ModuleKind::Power}
             }
         },
@@ -235,7 +245,8 @@ std::vector<Category> categories() {
         {
             "Extensions",
             {
-                {"ZPM", "zpm", {}, "Install ZPM extension from GitHub", true, ModuleKind::ExtensionInstall}
+                {"ZPM", "zpm", {}, "Install ZPM extension from GitHub", true, ModuleKind::ExtensionInstall},
+                {"Supported Services", "services", {}, "Install optional service extensions", true, ModuleKind::ServiceExtensions}
             }
         }
     };
@@ -657,6 +668,16 @@ bool command_exists(const std::string& command) {
 bool zpm_installed() {
     std::error_code ec;
     return fs::exists("/opt/ZPM", ec) && fs::is_directory("/opt/ZPM", ec);
+}
+
+bool service_feature_installed(const std::string& feature) {
+    std::error_code ec;
+    if (feature == "samba") return command_exists("smbd") || fs::exists("/etc/samba/smb.conf", ec);
+    if (feature == "apache") return command_exists("apache2") || command_exists("httpd") || fs::exists("/etc/apache2", ec) || fs::exists("/etc/httpd", ec);
+    if (feature == "dns") return command_exists("named") || command_exists("named-checkconf") || fs::exists("/etc/bind", ec) || fs::exists("/etc/named.conf", ec);
+    if (feature == "dhcp") return command_exists("dhcpd") || fs::exists("/etc/dhcp/dhcpd.conf", ec);
+    if (feature == "ftp") return command_exists("vsftpd") || fs::exists("/etc/vsftpd.conf", ec);
+    return false;
 }
 
 std::vector<std::string> split_words(const std::string& value) {
@@ -1249,6 +1270,33 @@ std::vector<std::string> extension_packages(const std::string& feature, const st
     return {};
 }
 
+std::vector<ListItem> service_extension_items() {
+    const std::string pm = detect_package_manager();
+    const std::vector<std::pair<std::string, std::string>> features = {
+        {"samba", "Samba"},
+        {"apache", "Apache"},
+        {"dns", "DNS / BIND"},
+        {"dhcp", "DHCP / ISC DHCP"},
+        {"ftp", "FTP / vsftpd"}
+    };
+
+    std::vector<ListItem> items;
+    for (const auto& [key, label] : features) {
+        const bool installed = service_feature_installed(key);
+        const auto packages = extension_packages(key, pm);
+        std::string detail = installed ? "installed" : "package: ";
+        if (!installed) {
+            for (size_t i = 0; i < packages.size(); ++i) {
+                if (i) detail += ", ";
+                detail += packages[i];
+            }
+            if (packages.empty()) detail += "unsupported package manager";
+        }
+        items.push_back({key, label, detail, false, false, {}});
+    }
+    return items;
+}
+
 CommandResult install_extension_packages(const std::string& feature) {
     const std::string pm = detect_package_manager();
     const std::vector<std::string> packages = extension_packages(feature, pm);
@@ -1518,14 +1566,20 @@ NativePanel make_native_panel(const Module& module) {
             {RowType::Bool, "writable", "Writable", "", {}, true, false},
             {RowType::Bool, "guest", "Guest access", "", {}, true, false},
             {RowType::Bool, "browseable", "Browseable", "", {}, true, false},
-            {RowType::Action, "install_samba", "Install Samba extension", "", {}, false, false},
+            {RowType::Text, "valid_users", "Valid users", ""},
+            {RowType::Text, "force_user", "Force user", ""},
+            {RowType::Text, "create_mask", "Create mask", "0664"},
+            {RowType::Text, "directory_mask", "Directory mask", "0775"},
+            {RowType::Text, "global_extra", "Extra global directives", ""},
+            {RowType::Text, "share_extra", "Extra share directives", ""},
             {RowType::Action, "apply_samba", "Apply share", "", {}, false, true},
             {RowType::Action, "restart_samba", "Restart Samba", "", {}, false, true},
             {RowType::Action, "enable_samba", "Enable Samba", "", {}, false, false}
         };
         panel.detailLines = {
             "Creates or updates a KSM managed share block in smb.conf.",
-            "Package is installed only when you press Install Samba extension."
+            "Extra directives accept native config lines separated with semicolons.",
+            "Install Samba from Extensions / Supported Services first."
         };
         break;
     case ModuleKind::Apache:
@@ -1534,15 +1588,23 @@ NativePanel make_native_panel(const Module& module) {
             {RowType::Text, "server_name", "ServerName", "_default_"},
             {RowType::Text, "port", "Port", "80"},
             {RowType::Text, "document_root", "DocumentRoot", "/var/www/ksm"},
+            {RowType::Text, "server_alias", "ServerAlias", ""},
+            {RowType::Text, "directory_options", "Directory Options", "Indexes FollowSymLinks"},
+            {RowType::Text, "allow_override", "AllowOverride", "None"},
+            {RowType::Text, "require", "Require", "all granted"},
+            {RowType::Text, "error_log", "ErrorLog", ""},
+            {RowType::Text, "custom_log", "CustomLog", ""},
             {RowType::Bool, "create_index", "Create index.html", "", {}, true, false},
             {RowType::Text, "index_title", "Index title", "KSM Apache"},
-            {RowType::Action, "install_apache", "Install Apache extension", "", {}, false, false},
+            {RowType::Text, "vhost_extra", "Extra vhost directives", ""},
+            {RowType::Text, "directory_extra", "Extra directory directives", ""},
             {RowType::Action, "apply_apache", "Apply virtual host", "", {}, false, true},
             {RowType::Action, "restart_apache", "Restart Apache", "", {}, false, true},
             {RowType::Action, "enable_apache", "Enable Apache", "", {}, false, false}
         };
         panel.detailLines = {
             "Writes a simple KSM virtual host.",
+            "Extra directives accept Apache lines separated with semicolons.",
             "Uses apache2 paths on Debian/openSUSE and httpd conf.d on Fedora/RHEL."
         };
         break;
@@ -1551,14 +1613,20 @@ NativePanel make_native_panel(const Module& module) {
             {RowType::Info, "status", "Service", service_status({"bind9", "named"})},
             {RowType::Text, "forwarders", "Forwarders", "1.1.1.1,8.8.8.8"},
             {RowType::Bool, "listen_all", "Listen on all IPv4", "", {}, false, false},
-            {RowType::Action, "install_dns", "Install DNS extension", "", {}, false, false},
+            {RowType::Text, "listen_on", "listen-on override", ""},
+            {RowType::Text, "allow_query", "allow-query", "any"},
+            {RowType::Text, "allow_recursion", "allow-recursion", "any"},
+            {RowType::Choice, "recursion", "recursion", "yes", {"yes", "no"}},
+            {RowType::Choice, "dnssec", "dnssec-validation", "auto", {"auto", "yes", "no"}},
+            {RowType::Text, "options_extra", "Extra options directives", ""},
+            {RowType::Text, "config_extra", "Extra named config", ""},
             {RowType::Action, "apply_dns", "Apply DNS cache", "", {}, false, true},
             {RowType::Action, "restart_dns", "Restart DNS", "", {}, false, true},
             {RowType::Action, "enable_dns", "Enable DNS", "", {}, false, false}
         };
         panel.detailLines = {
             "Configures BIND as a simple caching DNS server with forwarders.",
-            "Advanced zones can still be edited manually after this baseline."
+            "Extra config can contain zone/include/logging directives separated with semicolons."
         };
         break;
     case ModuleKind::DhcpServer: {
@@ -1574,14 +1642,19 @@ NativePanel make_native_panel(const Module& module) {
             {RowType::Text, "range_end", "Range end", "192.168.1.200"},
             {RowType::Text, "router", "Router", "192.168.1.1"},
             {RowType::Text, "dns", "DNS servers", "1.1.1.1,8.8.8.8"},
-            {RowType::Action, "install_dhcp", "Install DHCP extension", "", {}, false, false},
+            {RowType::Text, "domain", "Domain name", ""},
+            {RowType::Text, "default_lease", "Default lease", "600"},
+            {RowType::Text, "max_lease", "Max lease", "7200"},
+            {RowType::Bool, "authoritative", "Authoritative", "", {}, true, false},
+            {RowType::Text, "global_extra", "Extra global directives", ""},
+            {RowType::Text, "subnet_extra", "Extra subnet directives", ""},
             {RowType::Action, "apply_dhcp", "Apply DHCP config", "", {}, false, true},
             {RowType::Action, "restart_dhcp", "Restart DHCP", "", {}, false, true},
             {RowType::Action, "enable_dhcp", "Enable DHCP", "", {}, false, false}
         };
         panel.detailLines = {
             "Enter on an interface copies it into the Interface field.",
-            "Writes a basic DHCP range config for ISC DHCP."
+            "Extra directives accept ISC DHCP config lines separated with semicolons."
         };
         break;
     }
@@ -1591,16 +1664,39 @@ NativePanel make_native_panel(const Module& module) {
             {RowType::Bool, "anonymous", "Anonymous login", "", {}, false, false},
             {RowType::Bool, "local_users", "Local users", "", {}, true, false},
             {RowType::Bool, "writable", "Write enable", "", {}, false, false},
+            {RowType::Bool, "listen_ipv6", "Listen IPv6", "", {}, true, false},
+            {RowType::Bool, "chroot_local", "Chroot local users", "", {}, false, false},
+            {RowType::Bool, "passive", "Passive ports", "", {}, false, false},
+            {RowType::Text, "pasv_min", "Passive min port", "40000"},
+            {RowType::Text, "pasv_max", "Passive max port", "40100"},
+            {RowType::Bool, "ssl", "SSL enable", "", {}, false, false},
             {RowType::Text, "banner", "Banner", "KSM FTP ready"},
-            {RowType::Action, "install_ftp", "Install FTP extension", "", {}, false, false},
+            {RowType::Text, "extra", "Extra vsftpd directives", ""},
             {RowType::Action, "apply_ftp", "Apply vsftpd config", "", {}, false, true},
             {RowType::Action, "restart_ftp", "Restart FTP", "", {}, false, true},
             {RowType::Action, "enable_ftp", "Enable FTP", "", {}, false, false}
         };
         panel.detailLines = {
             "Configures the common vsftpd options.",
+            "Extra directives accept any vsftpd.conf lines separated with semicolons.",
             "Anonymous and write access stay off unless explicitly enabled."
         };
+        break;
+    case ModuleKind::ServiceExtensions:
+        panel.multiList = true;
+        panel.focus = PanelFocus::List;
+        panel.list = service_extension_items();
+        panel.rows = {
+            {RowType::Action, "install_selected_services", "Install selected", "", {}, false, false},
+            {RowType::Action, "install_all_services", "Install all supported", "", {}, false, false},
+            {RowType::Action, "reload_service_extensions", "Reload statuses", "", {}, false, false}
+        };
+        panel.detailLines = {
+            "Install optional service packages here.",
+            "Installed services appear as modules in the Services category.",
+            "Use Enter on the list to select individual service extensions."
+        };
+        panel.message = "Select service extensions or install all supported.";
         break;
     case ModuleKind::ExtensionInstall:
         panel.list = {
@@ -2056,12 +2152,18 @@ void handle_local_action(NativePanel& panel, const std::string& id) {
         load_ssh_config(panel);
         return;
     }
+    if (id == "reload_service_extensions") {
+        panel.list = service_extension_items();
+        panel.listIndex = 0;
+        panel.message = "Service extension statuses reloaded.";
+        return;
+    }
 }
 
 bool is_local_action(const std::string& id) {
     return id == "refresh_sysinfo" || id == "refresh_home" || id == "refresh_users" ||
            id == "refresh_groups" || id == "select_keyword" || id == "select_name" || id == "reload_services" ||
-           id == "load_perm" || id == "load_network" || id == "load_ssh";
+           id == "load_perm" || id == "load_network" || id == "load_ssh" || id == "reload_service_extensions";
 }
 
 bool valid_username(const std::string& username) {
@@ -2513,6 +2615,36 @@ std::string on_off(bool value) {
     return value ? "yes" : "no";
 }
 
+std::string upper_on_off(bool value) {
+    return value ? "YES" : "NO";
+}
+
+std::vector<std::string> directive_lines(std::string value) {
+    std::vector<std::string> result;
+    size_t pos = 0;
+    while ((pos = value.find("\\n", pos)) != std::string::npos) {
+        value.replace(pos, 2, "\n");
+        ++pos;
+    }
+
+    std::string normalized;
+    for (char ch : value) normalized += (ch == ';' ? '\n' : ch);
+
+    std::stringstream stream(normalized);
+    std::string line;
+    while (std::getline(stream, line)) {
+        line = trim(line);
+        if (!line.empty()) result.push_back(line);
+    }
+    return result;
+}
+
+void append_directives(std::string& config, const std::string& value, const std::string& indent = "") {
+    for (const auto& line : directive_lines(value)) {
+        config += indent + line + "\n";
+    }
+}
+
 void execute_power(NativePanel& panel, const std::string& actionId) {
     if (!ensure_root_auth(panel.message)) return;
     int code = 1;
@@ -2538,13 +2670,34 @@ void execute_power(NativePanel& panel, const std::string& actionId) {
     }
 }
 
-void execute_install_extension(NativePanel& panel, const std::string& feature, const std::vector<std::string>& services) {
+void execute_service_extensions(NativePanel& panel, const std::string& actionId) {
     if (!ensure_root_auth(panel.message)) return;
-    const CommandResult result = install_extension_packages(feature);
-    refresh_server_status(panel, "status", services);
-    panel.message = result.code == 0
-        ? "Installed " + feature + " extension."
-        : "Install failed: " + fit_text(strip_ansi(result.output), 80);
+    std::vector<std::string> features;
+    if (actionId == "install_all_services") {
+        features = {"samba", "apache", "dns", "dhcp", "ftp"};
+    } else {
+        features = selected_keys(panel);
+    }
+
+    if (features.empty()) {
+        panel.message = "Select at least one service extension.";
+        return;
+    }
+
+    int failures = 0;
+    int installed = 0;
+    for (const auto& feature : features) {
+        if (service_feature_installed(feature)) continue;
+        const CommandResult result = install_extension_packages(feature);
+        if (result.code == 0) ++installed;
+        else ++failures;
+    }
+
+    panel.list = service_extension_items();
+    panel.listIndex = 0;
+    panel.message = failures == 0
+        ? "Service extensions installed: " + std::to_string(installed) + ". Return to menu to refresh Services."
+        : "Service extension install failures: " + std::to_string(failures) + ".";
 }
 
 void execute_service_panel_action(NativePanel& panel, const std::vector<std::string>& services, const std::string& actionId, const std::string& label) {
@@ -2558,10 +2711,6 @@ void execute_service_panel_action(NativePanel& panel, const std::vector<std::str
 
 void execute_samba(NativePanel& panel, const std::string& actionId) {
     const std::vector<std::string> services = {"smbd", "samba"};
-    if (actionId == "install_samba") {
-        execute_install_extension(panel, "samba", services);
-        return;
-    }
     if (actionId == "restart_samba" || actionId == "enable_samba") {
         execute_service_panel_action(panel, services, actionId, "Samba");
         return;
@@ -2577,6 +2726,13 @@ void execute_samba(NativePanel& panel, const std::string& actionId) {
     if (row_checked(panel, "create_path")) run_command({"mkdir", "-p", path}, true);
 
     std::string content = read_file_text("/etc/samba/smb.conf");
+    content = remove_marked_block(content, "samba:global");
+    if (!trim(row_value(panel, "global_extra")).empty()) {
+        content += "\n# KSM-BEGIN samba:global\n";
+        content += "[global]\n";
+        append_directives(content, row_value(panel, "global_extra"), "   ");
+        content += "# KSM-END samba:global\n";
+    }
     content = remove_marked_block(content, "samba:" + share);
     content += "\n# KSM-BEGIN samba:" + share + "\n";
     content += "[" + share + "]\n";
@@ -2584,8 +2740,11 @@ void execute_samba(NativePanel& panel, const std::string& actionId) {
     content += "   writable = " + on_off(row_checked(panel, "writable")) + "\n";
     content += "   guest ok = " + on_off(row_checked(panel, "guest")) + "\n";
     content += "   browseable = " + on_off(row_checked(panel, "browseable")) + "\n";
-    content += "   create mask = 0664\n";
-    content += "   directory mask = 0775\n";
+    if (!trim(row_value(panel, "valid_users")).empty()) content += "   valid users = " + trim(row_value(panel, "valid_users")) + "\n";
+    if (!trim(row_value(panel, "force_user")).empty()) content += "   force user = " + trim(row_value(panel, "force_user")) + "\n";
+    content += "   create mask = " + trim(row_value(panel, "create_mask")) + "\n";
+    content += "   directory mask = " + trim(row_value(panel, "directory_mask")) + "\n";
+    append_directives(content, row_value(panel, "share_extra"), "   ");
     content += "# KSM-END samba:" + share + "\n";
 
     const bool ok = write_root_file("/etc/samba/smb.conf", content);
@@ -2596,10 +2755,6 @@ void execute_samba(NativePanel& panel, const std::string& actionId) {
 
 void execute_apache(NativePanel& panel, const std::string& actionId) {
     const std::vector<std::string> services = {"apache2", "httpd"};
-    if (actionId == "install_apache") {
-        execute_install_extension(panel, "apache", services);
-        return;
-    }
     if (actionId == "restart_apache" || actionId == "enable_apache") {
         execute_service_panel_action(panel, services, actionId, "Apache");
         return;
@@ -2624,11 +2779,16 @@ void execute_apache(NativePanel& panel, const std::string& actionId) {
     std::string config;
     config += "<VirtualHost *:" + port + ">\n";
     if (!serverName.empty() && serverName != "_default_") config += "    ServerName " + serverName + "\n";
+    if (!trim(row_value(panel, "server_alias")).empty()) config += "    ServerAlias " + trim(row_value(panel, "server_alias")) + "\n";
     config += "    DocumentRoot " + root + "\n";
+    if (!trim(row_value(panel, "error_log")).empty()) config += "    ErrorLog " + trim(row_value(panel, "error_log")) + "\n";
+    if (!trim(row_value(panel, "custom_log")).empty()) config += "    CustomLog " + trim(row_value(panel, "custom_log")) + "\n";
+    append_directives(config, row_value(panel, "vhost_extra"), "    ");
     config += "    <Directory \"" + root + "\">\n";
-    config += "        Options Indexes FollowSymLinks\n";
-    config += "        AllowOverride None\n";
-    config += "        Require all granted\n";
+    config += "        Options " + trim(row_value(panel, "directory_options")) + "\n";
+    config += "        AllowOverride " + trim(row_value(panel, "allow_override")) + "\n";
+    config += "        Require " + trim(row_value(panel, "require")) + "\n";
+    append_directives(config, row_value(panel, "directory_extra"), "        ");
     config += "    </Directory>\n";
     config += "</VirtualHost>\n";
 
@@ -2644,10 +2804,6 @@ void execute_apache(NativePanel& panel, const std::string& actionId) {
 
 void execute_dns(NativePanel& panel, const std::string& actionId) {
     const std::vector<std::string> services = {"bind9", "named"};
-    if (actionId == "install_dns") {
-        execute_install_extension(panel, "dns", services);
-        return;
-    }
     if (actionId == "restart_dns" || actionId == "enable_dns") {
         execute_service_panel_action(panel, services, actionId, "DNS");
         return;
@@ -2662,18 +2818,30 @@ void execute_dns(NativePanel& panel, const std::string& actionId) {
     const bool bindDir = fs::exists("/etc/bind");
     const fs::path configPath = bindDir ? fs::path("/etc/bind/named.conf.options") : fs::path("/etc/named.conf");
     const std::string directory = fs::exists("/var/named") ? "/var/named" : "/var/cache/bind";
+    const std::string listenOverride = trim(row_value(panel, "listen_on"));
+    const std::string allowQuery = trim(row_value(panel, "allow_query"));
+    const std::string allowRecursion = trim(row_value(panel, "allow_recursion"));
 
     std::string config;
     config += "options {\n";
     config += "    directory \"" + directory + "\";\n";
-    config += (row_checked(panel, "listen_all") ? "    listen-on port 53 { any; };\n" : "    listen-on port 53 { 127.0.0.1; };\n");
-    config += "    allow-query { any; };\n";
-    config += "    recursion yes;\n";
+    if (!listenOverride.empty() && listenOverride.find("listen-on") != std::string::npos) {
+        config += "    " + listenOverride + "\n";
+    } else if (!listenOverride.empty()) {
+        config += "    listen-on port 53 { " + listenOverride + "; };\n";
+    } else {
+        config += (row_checked(panel, "listen_all") ? "    listen-on port 53 { any; };\n" : "    listen-on port 53 { 127.0.0.1; };\n");
+    }
+    if (!allowQuery.empty()) config += "    allow-query { " + allowQuery + "; };\n";
+    if (!allowRecursion.empty()) config += "    allow-recursion { " + allowRecursion + "; };\n";
+    config += "    recursion " + row_value(panel, "recursion") + ";\n";
     config += "    forwarders { ";
     for (const auto& server : forwarders) config += server + "; ";
     config += "};\n";
-    config += "    dnssec-validation auto;\n";
+    config += "    dnssec-validation " + row_value(panel, "dnssec") + ";\n";
+    append_directives(config, row_value(panel, "options_extra"), "    ");
     config += "};\n";
+    append_directives(config, row_value(panel, "config_extra"));
 
     const bool ok = write_root_file(configPath, config);
     if (ok) service_action(services, {"restart"});
@@ -2683,10 +2851,6 @@ void execute_dns(NativePanel& panel, const std::string& actionId) {
 
 void execute_dhcp(NativePanel& panel, const std::string& actionId) {
     const std::vector<std::string> services = {"isc-dhcp-server", "dhcpd"};
-    if (actionId == "install_dhcp") {
-        execute_install_extension(panel, "dhcp", services);
-        return;
-    }
     if (actionId == "restart_dhcp" || actionId == "enable_dhcp") {
         execute_service_panel_action(panel, services, actionId, "DHCP");
         return;
@@ -2705,13 +2869,17 @@ void execute_dhcp(NativePanel& panel, const std::string& actionId) {
     }
 
     std::string config;
-    config += "default-lease-time 600;\n";
-    config += "max-lease-time 7200;\n";
-    config += "authoritative;\n\n";
+    config += "default-lease-time " + trim(row_value(panel, "default_lease")) + ";\n";
+    config += "max-lease-time " + trim(row_value(panel, "max_lease")) + ";\n";
+    if (row_checked(panel, "authoritative")) config += "authoritative;\n";
+    if (!trim(row_value(panel, "domain")).empty()) config += "option domain-name \"" + trim(row_value(panel, "domain")) + "\";\n";
+    append_directives(config, row_value(panel, "global_extra"));
+    config += "\n";
     config += "subnet " + subnet + " netmask " + netmask + " {\n";
     config += "  range " + start + " " + end + ";\n";
     config += "  option routers " + router + ";\n";
     if (!trim(row_value(panel, "dns")).empty()) config += "  option domain-name-servers " + row_value(panel, "dns") + ";\n";
+    append_directives(config, row_value(panel, "subnet_extra"), "  ");
     config += "}\n";
 
     bool ok = write_root_file("/etc/dhcp/dhcpd.conf", config);
@@ -2728,10 +2896,6 @@ void execute_dhcp(NativePanel& panel, const std::string& actionId) {
 
 void execute_ftp(NativePanel& panel, const std::string& actionId) {
     const std::vector<std::string> services = {"vsftpd"};
-    if (actionId == "install_ftp") {
-        execute_install_extension(panel, "ftp", services);
-        return;
-    }
     if (actionId == "restart_ftp" || actionId == "enable_ftp") {
         execute_service_panel_action(panel, services, actionId, "FTP");
         return;
@@ -2739,17 +2903,24 @@ void execute_ftp(NativePanel& panel, const std::string& actionId) {
     if (!ensure_root_auth(panel.message)) return;
 
     std::string config;
-    config += "listen=NO\n";
-    config += "listen_ipv6=YES\n";
-    config += "anonymous_enable=" + std::string(row_checked(panel, "anonymous") ? "YES" : "NO") + "\n";
-    config += "local_enable=" + std::string(row_checked(panel, "local_users") ? "YES" : "NO") + "\n";
-    config += "write_enable=" + std::string(row_checked(panel, "writable") ? "YES" : "NO") + "\n";
+    config += row_checked(panel, "listen_ipv6") ? "listen=NO\nlisten_ipv6=YES\n" : "listen=YES\nlisten_ipv6=NO\n";
+    config += "anonymous_enable=" + upper_on_off(row_checked(panel, "anonymous")) + "\n";
+    config += "local_enable=" + upper_on_off(row_checked(panel, "local_users")) + "\n";
+    config += "write_enable=" + upper_on_off(row_checked(panel, "writable")) + "\n";
+    config += "chroot_local_user=" + upper_on_off(row_checked(panel, "chroot_local")) + "\n";
     config += "dirmessage_enable=YES\n";
     config += "use_localtime=YES\n";
     config += "xferlog_enable=YES\n";
     config += "secure_chroot_dir=/var/run/vsftpd/empty\n";
+    config += "ssl_enable=" + upper_on_off(row_checked(panel, "ssl")) + "\n";
+    if (row_checked(panel, "passive")) {
+        config += "pasv_enable=YES\n";
+        config += "pasv_min_port=" + trim(row_value(panel, "pasv_min")) + "\n";
+        config += "pasv_max_port=" + trim(row_value(panel, "pasv_max")) + "\n";
+    }
     const std::string banner = trim(row_value(panel, "banner"));
     if (!banner.empty()) config += "ftpd_banner=" + banner + "\n";
+    append_directives(config, row_value(panel, "extra"));
 
     const bool ok = write_root_file("/etc/vsftpd.conf", config);
     if (ok) service_action(services, {"restart"});
@@ -3026,6 +3197,8 @@ void execute_panel_action(NativePanel& panel, const std::string& id) {
     else if (panel.kind == ModuleKind::DhcpServer) execute_dhcp(panel, id);
     else if (panel.kind == ModuleKind::FtpServer) execute_ftp(panel, id);
     else if (panel.kind == ModuleKind::ExtensionInstall && id == "install_zpm") execute_install_zpm(panel);
+    else if (panel.kind == ModuleKind::ServiceExtensions &&
+             (id == "install_selected_services" || id == "install_all_services")) execute_service_extensions(panel, id);
     else if (panel.kind == ModuleKind::ZpmExtension && id == "run_zpm_gui") execute_zpm_gui_action(panel);
     else if (panel.kind == ModuleKind::Upgrade && id == "run_upgrade") execute_upgrade(panel);
     else if (panel.kind == ModuleKind::Uninstall && id == "run_uninstall") execute_uninstall(panel);
