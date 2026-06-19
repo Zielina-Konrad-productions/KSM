@@ -57,6 +57,7 @@ Optional service extensions can be installed from `Extensions` / `Supported Serv
 - FTP: `vsftpd`
 
 Service panels include common fields plus `Extra ... directives` fields for native config lines separated with semicolons.
+Installed service panels also include service controls, status/log viewers, config tests, and service-specific tools such as Apache sites/modules, Samba users, BIND zones, DHCP leases/reservations, and vsftpd config viewing.
 
 ## Uninstall
 

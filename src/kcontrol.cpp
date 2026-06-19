@@ -165,6 +165,7 @@ Element render_progress(const ProgressState& state);
 bool command_exists(const std::string& command);
 bool zpm_installed();
 bool service_feature_installed(const std::string& feature);
+void set_terminal_output(NativePanel& panel, const std::string& title, const std::string& output);
 
 void version() {
     std::cout << BLUE << "kcontrol component version: v" << ksm_version::version() << RESET << '\n';
@@ -1589,9 +1590,21 @@ NativePanel make_native_panel(const Module& module) {
             {RowType::Text, "directory_mask", "Directory mask", "0775"},
             {RowType::Text, "global_extra", "Extra global directives", ""},
             {RowType::Text, "share_extra", "Extra share directives", ""},
+            {RowType::Text, "samba_user", "Samba user", ""},
             {RowType::Action, "apply_samba", "Apply share", "", {}, false, true},
+            {RowType::Action, "test_samba", "Test config", "", {}, false, false},
+            {RowType::Action, "list_samba_shares", "List shares", "", {}, false, false},
+            {RowType::Action, "list_samba_users", "List Samba users", "", {}, false, false},
+            {RowType::Action, "add_samba_user", "Add Samba password", "", {}, false, true},
+            {RowType::Action, "delete_samba_user", "Delete Samba user", "", {}, false, true},
+            {RowType::Action, "start_samba", "Start Samba", "", {}, false, false},
+            {RowType::Action, "stop_samba", "Stop Samba", "", {}, false, true},
+            {RowType::Action, "reload_samba", "Reload Samba", "", {}, false, false},
             {RowType::Action, "restart_samba", "Restart Samba", "", {}, false, true},
-            {RowType::Action, "enable_samba", "Enable Samba", "", {}, false, false}
+            {RowType::Action, "enable_samba", "Enable Samba", "", {}, false, false},
+            {RowType::Action, "disable_samba", "Disable Samba", "", {}, false, true},
+            {RowType::Action, "status_samba", "Show status", "", {}, false, false},
+            {RowType::Action, "logs_samba", "Show logs", "", {}, false, false}
         };
         panel.detailLines = {
             "Creates or updates a KSM managed share block in smb.conf.",
@@ -1615,9 +1628,24 @@ NativePanel make_native_panel(const Module& module) {
             {RowType::Text, "index_title", "Index title", "KSM Apache"},
             {RowType::Text, "vhost_extra", "Extra vhost directives", ""},
             {RowType::Text, "directory_extra", "Extra directory directives", ""},
+            {RowType::Text, "site_name", "Site name", "ksm.conf"},
+            {RowType::Text, "module_name", "Module name", "rewrite"},
             {RowType::Action, "apply_apache", "Apply virtual host", "", {}, false, true},
+            {RowType::Action, "test_apache", "Test config", "", {}, false, false},
+            {RowType::Action, "list_apache_sites", "List sites", "", {}, false, false},
+            {RowType::Action, "enable_apache_site", "Enable site", "", {}, false, false},
+            {RowType::Action, "disable_apache_site", "Disable site", "", {}, false, true},
+            {RowType::Action, "list_apache_modules", "List modules", "", {}, false, false},
+            {RowType::Action, "enable_apache_module", "Enable module", "", {}, false, false},
+            {RowType::Action, "disable_apache_module", "Disable module", "", {}, false, true},
+            {RowType::Action, "start_apache", "Start Apache", "", {}, false, false},
+            {RowType::Action, "stop_apache", "Stop Apache", "", {}, false, true},
+            {RowType::Action, "reload_apache", "Reload Apache", "", {}, false, false},
             {RowType::Action, "restart_apache", "Restart Apache", "", {}, false, true},
-            {RowType::Action, "enable_apache", "Enable Apache", "", {}, false, false}
+            {RowType::Action, "enable_apache", "Enable Apache", "", {}, false, false},
+            {RowType::Action, "disable_apache", "Disable Apache", "", {}, false, true},
+            {RowType::Action, "status_apache", "Show status", "", {}, false, false},
+            {RowType::Action, "logs_apache", "Show logs", "", {}, false, false}
         };
         panel.detailLines = {
             "Writes a simple KSM virtual host.",
@@ -1637,9 +1665,23 @@ NativePanel make_native_panel(const Module& module) {
             {RowType::Choice, "dnssec", "dnssec-validation", "auto", {"auto", "yes", "no"}},
             {RowType::Text, "options_extra", "Extra options directives", ""},
             {RowType::Text, "config_extra", "Extra named config", ""},
+            {RowType::Text, "zone_name", "Zone name", "example.local"},
+            {RowType::Choice, "zone_type", "Zone type", "master", {"master", "slave", "forward"}},
+            {RowType::Text, "zone_file", "Zone file", "/etc/bind/db.example.local"},
+            {RowType::Text, "zone_extra", "Extra zone directives", ""},
             {RowType::Action, "apply_dns", "Apply DNS cache", "", {}, false, true},
+            {RowType::Action, "add_dns_zone", "Add zone block", "", {}, false, true},
+            {RowType::Action, "test_dns", "Test config", "", {}, false, false},
+            {RowType::Action, "rndc_status", "rndc status", "", {}, false, false},
+            {RowType::Action, "rndc_reload", "rndc reload", "", {}, false, false},
+            {RowType::Action, "start_dns", "Start DNS", "", {}, false, false},
+            {RowType::Action, "stop_dns", "Stop DNS", "", {}, false, true},
+            {RowType::Action, "reload_dns", "Reload DNS", "", {}, false, false},
             {RowType::Action, "restart_dns", "Restart DNS", "", {}, false, true},
-            {RowType::Action, "enable_dns", "Enable DNS", "", {}, false, false}
+            {RowType::Action, "enable_dns", "Enable DNS", "", {}, false, false},
+            {RowType::Action, "disable_dns", "Disable DNS", "", {}, false, true},
+            {RowType::Action, "status_dns", "Show status", "", {}, false, false},
+            {RowType::Action, "logs_dns", "Show logs", "", {}, false, false}
         };
         panel.detailLines = {
             "Configures BIND as a simple caching DNS server with forwarders.",
@@ -1665,9 +1707,21 @@ NativePanel make_native_panel(const Module& module) {
             {RowType::Bool, "authoritative", "Authoritative", "", {}, true, false},
             {RowType::Text, "global_extra", "Extra global directives", ""},
             {RowType::Text, "subnet_extra", "Extra subnet directives", ""},
+            {RowType::Text, "reservation_name", "Reservation name", ""},
+            {RowType::Text, "reservation_mac", "Reservation MAC", ""},
+            {RowType::Text, "reservation_ip", "Reservation IP", ""},
             {RowType::Action, "apply_dhcp", "Apply DHCP config", "", {}, false, true},
+            {RowType::Action, "add_dhcp_reservation", "Add reservation", "", {}, false, true},
+            {RowType::Action, "test_dhcp", "Test config", "", {}, false, false},
+            {RowType::Action, "show_dhcp_leases", "Show leases", "", {}, false, false},
+            {RowType::Action, "start_dhcp", "Start DHCP", "", {}, false, false},
+            {RowType::Action, "stop_dhcp", "Stop DHCP", "", {}, false, true},
+            {RowType::Action, "reload_dhcp", "Reload DHCP", "", {}, false, false},
             {RowType::Action, "restart_dhcp", "Restart DHCP", "", {}, false, true},
-            {RowType::Action, "enable_dhcp", "Enable DHCP", "", {}, false, false}
+            {RowType::Action, "enable_dhcp", "Enable DHCP", "", {}, false, false},
+            {RowType::Action, "disable_dhcp", "Disable DHCP", "", {}, false, true},
+            {RowType::Action, "status_dhcp", "Show status", "", {}, false, false},
+            {RowType::Action, "logs_dhcp", "Show logs", "", {}, false, false}
         };
         panel.detailLines = {
             "Enter on an interface copies it into the Interface field.",
@@ -1690,8 +1744,15 @@ NativePanel make_native_panel(const Module& module) {
             {RowType::Text, "banner", "Banner", "KSM FTP ready"},
             {RowType::Text, "extra", "Extra vsftpd directives", ""},
             {RowType::Action, "apply_ftp", "Apply vsftpd config", "", {}, false, true},
+            {RowType::Action, "show_ftp_config", "Show config", "", {}, false, false},
+            {RowType::Action, "start_ftp", "Start FTP", "", {}, false, false},
+            {RowType::Action, "stop_ftp", "Stop FTP", "", {}, false, true},
+            {RowType::Action, "reload_ftp", "Reload FTP", "", {}, false, false},
             {RowType::Action, "restart_ftp", "Restart FTP", "", {}, false, true},
-            {RowType::Action, "enable_ftp", "Enable FTP", "", {}, false, false}
+            {RowType::Action, "enable_ftp", "Enable FTP", "", {}, false, false},
+            {RowType::Action, "disable_ftp", "Disable FTP", "", {}, false, true},
+            {RowType::Action, "status_ftp", "Show status", "", {}, false, false},
+            {RowType::Action, "logs_ftp", "Show logs", "", {}, false, false}
         };
         panel.detailLines = {
             "Configures the common vsftpd options.",
@@ -2719,19 +2780,121 @@ void execute_service_extensions(NativePanel& panel, const std::string& actionId)
         : "Service extension install failures: " + std::to_string(failures) + ".";
 }
 
+std::string first_service_name(const std::vector<std::string>& services) {
+    for (const auto& service : services) {
+        const CommandResult result = run_command({"systemctl", "is-active", service});
+        const std::string state = trim(result.output);
+        if (!state.empty() && state != "unknown") return service;
+    }
+    return services.empty() ? "" : services.front();
+}
+
+void set_command_output(NativePanel& panel, const std::string& title, const CommandResult& result) {
+    std::string output = result.output;
+    if (output.empty()) output = "Exit code: " + std::to_string(result.code);
+    set_terminal_output(panel, title, output);
+    panel.focus = PanelFocus::List;
+    panel.listIndex = 0;
+    panel.message = title + " finished with code " + std::to_string(result.code) + ".";
+}
+
+void run_interactive_panel_command(NativePanel& panel, const std::string& title, std::vector<std::string> args, bool asRoot = true) {
+    std::cout << "\033[0m\033[2J\033[H";
+    std::cout << CYAN << "[KSM]" << RESET << " " << title << "\n\n";
+    const int code = run_command_interactive(std::move(args), asRoot);
+    std::cout << "\n" << CYAN << "[KSM]" << RESET << " Process exited with code " << code << ".\n";
+    std::cout << "Press Enter to return to KSM..." << std::flush;
+    std::string ignored;
+    std::getline(std::cin, ignored);
+    panel.message = title + " exited with code " + std::to_string(code) + ".";
+}
+
+std::string read_first_existing_file(const std::vector<fs::path>& paths) {
+    for (const auto& path : paths) {
+        std::error_code ec;
+        if (fs::exists(path, ec)) return read_file_text(path);
+    }
+    return "";
+}
+
+bool service_control_from_action(
+    NativePanel& panel,
+    const std::vector<std::string>& services,
+    const std::string& actionId,
+    const std::string& label
+) {
+    const std::vector<std::pair<std::string, std::vector<std::string>>> actions = {
+        {"start_", {"start"}},
+        {"stop_", {"stop"}},
+        {"reload_", {"reload"}},
+        {"restart_", {"restart"}},
+        {"enable_", {"enable", "--now"}},
+        {"disable_", {"disable", "--now"}}
+    };
+
+    for (const auto& [prefix, systemctlAction] : actions) {
+        if (actionId.rfind(prefix, 0) == 0) {
+            if (!ensure_root_auth(panel.message)) return true;
+            const bool ok = service_action(services, systemctlAction);
+            refresh_server_status(panel, "status", services);
+            panel.message = ok ? label + " " + systemctlAction.front() + " completed." : label + " " + systemctlAction.front() + " failed.";
+            return true;
+        }
+    }
+
+    if (actionId.rfind("status_", 0) == 0) {
+        const std::string service = first_service_name(services);
+        set_command_output(panel, label + " status", run_command({"systemctl", "status", "--no-pager", service}, true));
+        refresh_server_status(panel, "status", services);
+        return true;
+    }
+    if (actionId.rfind("logs_", 0) == 0) {
+        const std::string service = first_service_name(services);
+        set_command_output(panel, label + " logs", run_command({"journalctl", "-u", service, "-n", "120", "--no-pager"}, true));
+        refresh_server_status(panel, "status", services);
+        return true;
+    }
+
+    return false;
+}
+
 void execute_service_panel_action(NativePanel& panel, const std::vector<std::string>& services, const std::string& actionId, const std::string& label) {
-    if (!ensure_root_auth(panel.message)) return;
-    bool ok = false;
-    if (actionId.rfind("restart_", 0) == 0) ok = service_action(services, {"restart"});
-    else if (actionId.rfind("enable_", 0) == 0) ok = service_action(services, {"enable", "--now"});
-    refresh_server_status(panel, "status", services);
-    panel.message = ok ? label + " service action completed." : label + " service action failed.";
+    if (!service_control_from_action(panel, services, actionId, label)) {
+        panel.message = "Unknown service action.";
+    }
 }
 
 void execute_samba(NativePanel& panel, const std::string& actionId) {
     const std::vector<std::string> services = {"smbd", "samba"};
-    if (actionId == "restart_samba" || actionId == "enable_samba") {
-        execute_service_panel_action(panel, services, actionId, "Samba");
+    if (service_control_from_action(panel, services, actionId, "Samba")) return;
+    if (actionId == "test_samba") {
+        set_command_output(panel, "Samba testparm", run_command({"testparm", "-s"}, true));
+        return;
+    }
+    if (actionId == "list_samba_shares") {
+        set_command_output(panel, "Samba shares", run_command({"testparm", "-s"}, true));
+        return;
+    }
+    if (actionId == "list_samba_users") {
+        set_command_output(panel, "Samba users", run_command({"pdbedit", "-L"}, true));
+        return;
+    }
+    if (actionId == "add_samba_user") {
+        const std::string user = trim(row_value(panel, "samba_user"));
+        if (user.empty()) {
+            panel.message = "Samba user is required.";
+            return;
+        }
+        run_interactive_panel_command(panel, "Add Samba password for " + user, {"smbpasswd", "-a", user}, true);
+        return;
+    }
+    if (actionId == "delete_samba_user") {
+        const std::string user = trim(row_value(panel, "samba_user"));
+        if (user.empty()) {
+            panel.message = "Samba user is required.";
+            return;
+        }
+        set_command_output(panel, "Delete Samba user", run_command({"smbpasswd", "-x", user}, true));
         return;
     }
     if (!ensure_root_auth(panel.message)) return;
@@ -2774,8 +2937,55 @@ void execute_samba(NativePanel& panel, const std::string& actionId) {
 
 void execute_apache(NativePanel& panel, const std::string& actionId) {
     const std::vector<std::string> services = {"apache2", "httpd"};
-    if (actionId == "restart_apache" || actionId == "enable_apache") {
-        execute_service_panel_action(panel, services, actionId, "Apache");
+    if (service_control_from_action(panel, services, actionId, "Apache")) return;
+    if (actionId == "test_apache") {
+        if (command_exists("apachectl")) set_command_output(panel, "Apache config test", run_command({"apachectl", "-t"}, true));
+        else set_command_output(panel, "Apache config test", run_command({"httpd", "-t"}, true));
+        return;
+    }
+    if (actionId == "list_apache_sites") {
+        if (fs::exists("/etc/apache2")) {
+            set_command_output(panel, "Apache sites", run_command({"sh", "-c", "ls -1 /etc/apache2/sites-available /etc/apache2/sites-enabled 2>/dev/null"}, true));
+        } else {
+            set_command_output(panel, "Apache conf.d", run_command({"sh", "-c", "ls -1 /etc/httpd/conf.d 2>/dev/null"}, true));
+        }
+        return;
+    }
+    if (actionId == "enable_apache_site" || actionId == "disable_apache_site") {
+        const std::string site = trim(row_value(panel, "site_name"));
+        if (site.empty()) {
+            panel.message = "Site name is required.";
+            return;
+        }
+        if (!command_exists(actionId == "enable_apache_site" ? "a2ensite" : "a2dissite")) {
+            panel.message = "a2ensite/a2dissite is not available on this distro.";
+            return;
+        }
+        const std::string tool = actionId == "enable_apache_site" ? "a2ensite" : "a2dissite";
+        set_command_output(panel, "Apache site action", run_command({tool, site}, true));
+        service_action(services, {"reload"});
+        return;
+    }
+    if (actionId == "list_apache_modules") {
+        if (command_exists("apache2ctl")) set_command_output(panel, "Apache modules", run_command({"apache2ctl", "-M"}, true));
+        else if (command_exists("apachectl")) set_command_output(panel, "Apache modules", run_command({"apachectl", "-M"}, true));
+        else set_command_output(panel, "Apache modules", run_command({"httpd", "-M"}, true));
+        return;
+    }
+    if (actionId == "enable_apache_module" || actionId == "disable_apache_module") {
+        const std::string module = trim(row_value(panel, "module_name"));
+        if (module.empty()) {
+            panel.message = "Module name is required.";
+            return;
+        }
+        const bool enable = actionId == "enable_apache_module";
+        const std::string tool = enable ? "a2enmod" : "a2dismod";
+        if (!command_exists(tool)) {
+            panel.message = tool + " is not available on this distro.";
+            return;
+        }
+        set_command_output(panel, "Apache module action", run_command({tool, module}, true));
+        service_action(services, {"reload"});
         return;
     }
     if (!ensure_root_auth(panel.message)) return;
@@ -2823,8 +3033,43 @@ void execute_apache(NativePanel& panel, const std::string& actionId) {
 
 void execute_dns(NativePanel& panel, const std::string& actionId) {
     const std::vector<std::string> services = {"bind9", "named"};
-    if (actionId == "restart_dns" || actionId == "enable_dns") {
-        execute_service_panel_action(panel, services, actionId, "DNS");
+    if (service_control_from_action(panel, services, actionId, "DNS")) return;
+    if (actionId == "test_dns") {
+        const fs::path configPath = fs::exists("/etc/bind") ? fs::path("/etc/bind/named.conf") : fs::path("/etc/named.conf");
+        set_command_output(panel, "BIND config test", run_command({"named-checkconf", configPath.string()}, true));
+        return;
+    }
+    if (actionId == "rndc_status") {
+        set_command_output(panel, "rndc status", run_command({"rndc", "status"}, true));
+        return;
+    }
+    if (actionId == "rndc_reload") {
+        set_command_output(panel, "rndc reload", run_command({"rndc", "reload"}, true));
+        refresh_server_status(panel, "status", services);
+        return;
+    }
+    if (actionId == "add_dns_zone") {
+        if (!ensure_root_auth(panel.message)) return;
+        const std::string zone = trim(row_value(panel, "zone_name"));
+        const std::string zoneType = row_value(panel, "zone_type");
+        const std::string zoneFile = trim(row_value(panel, "zone_file"));
+        if (zone.empty()) {
+            panel.message = "Zone name is required.";
+            return;
+        }
+        const fs::path configPath = fs::exists("/etc/bind") ? fs::path("/etc/bind/named.conf.local") : fs::path("/etc/named.conf");
+        std::string content = read_file_text(configPath);
+        content = remove_marked_block(content, "dnszone:" + zone);
+        content += "\n# KSM-BEGIN dnszone:" + zone + "\n";
+        content += "zone \"" + zone + "\" {\n";
+        content += "    type " + zoneType + ";\n";
+        if (!zoneFile.empty() && zoneType != "forward") content += "    file \"" + zoneFile + "\";\n";
+        append_directives(content, row_value(panel, "zone_extra"), "    ");
+        content += "};\n";
+        content += "# KSM-END dnszone:" + zone + "\n";
+        const bool ok = write_root_file(configPath, content);
+        if (ok) service_action(services, {"reload"});
+        panel.message = ok ? "DNS zone block applied." : "Writing DNS zone failed.";
         return;
     }
     if (!ensure_root_auth(panel.message)) return;
@@ -2870,8 +3115,38 @@ void execute_dns(NativePanel& panel, const std::string& actionId) {
 
 void execute_dhcp(NativePanel& panel, const std::string& actionId) {
     const std::vector<std::string> services = {"isc-dhcp-server", "dhcpd"};
-    if (actionId == "restart_dhcp" || actionId == "enable_dhcp") {
-        execute_service_panel_action(panel, services, actionId, "DHCP");
+    if (service_control_from_action(panel, services, actionId, "DHCP")) return;
+    if (actionId == "test_dhcp") {
+        set_command_output(panel, "DHCP config test", run_command({"dhcpd", "-t", "-cf", "/etc/dhcp/dhcpd.conf"}, true));
+        return;
+    }
+    if (actionId == "show_dhcp_leases") {
+        const std::string leases = read_first_existing_file({"/var/lib/dhcp/dhcpd.leases", "/var/lib/dhcpd/dhcpd.leases"});
+        set_terminal_output(panel, "DHCP leases", leases.empty() ? "No dhcpd.leases file found." : leases);
+        panel.focus = PanelFocus::List;
+        panel.message = "DHCP leases loaded.";
+        return;
+    }
+    if (actionId == "add_dhcp_reservation") {
+        if (!ensure_root_auth(panel.message)) return;
+        const std::string name = trim(row_value(panel, "reservation_name"));
+        const std::string mac = trim(row_value(panel, "reservation_mac"));
+        const std::string ip = trim(row_value(panel, "reservation_ip"));
+        if (name.empty() || mac.empty() || ip.empty()) {
+            panel.message = "Reservation name, MAC and IP are required.";
+            return;
+        }
+        std::string content = read_file_text("/etc/dhcp/dhcpd.conf");
+        content = remove_marked_block(content, "dhcp-host:" + name);
+        content += "\n# KSM-BEGIN dhcp-host:" + name + "\n";
+        content += "host " + name + " {\n";
+        content += "  hardware ethernet " + mac + ";\n";
+        content += "  fixed-address " + ip + ";\n";
+        content += "}\n";
+        content += "# KSM-END dhcp-host:" + name + "\n";
+        const bool ok = write_root_file("/etc/dhcp/dhcpd.conf", content);
+        if (ok) service_action(services, {"restart"});
+        panel.message = ok ? "DHCP reservation applied." : "Writing DHCP reservation failed.";
         return;
     }
     if (!ensure_root_auth(panel.message)) return;
@@ -2915,8 +3190,11 @@ void execute_dhcp(NativePanel& panel, const std::string& actionId) {
 
 void execute_ftp(NativePanel& panel, const std::string& actionId) {
     const std::vector<std::string> services = {"vsftpd"};
-    if (actionId == "restart_ftp" || actionId == "enable_ftp") {
-        execute_service_panel_action(panel, services, actionId, "FTP");
+    if (service_control_from_action(panel, services, actionId, "FTP")) return;
+    if (actionId == "show_ftp_config") {
+        set_terminal_output(panel, "vsftpd.conf", read_file_text("/etc/vsftpd.conf"));
+        panel.focus = PanelFocus::List;
+        panel.message = "vsftpd.conf loaded.";
         return;
     }
     if (!ensure_root_auth(panel.message)) return;
